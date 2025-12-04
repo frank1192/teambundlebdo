@@ -4,6 +4,14 @@ const fs = require('fs');
 const path = require('path');
 
 /**
+ * Get the workspace directory
+ * In GitHub Actions, use GITHUB_WORKSPACE; otherwise use current directory
+ */
+function getWorkspaceDir() {
+  return process.env.GITHUB_WORKSPACE || process.cwd();
+}
+
+/**
  * Main entry point for the ESB/ACE12 Checklist Action
  * This action validates ESB/ACE12 service repositories for compliance
  */
@@ -14,8 +22,11 @@ async function run() {
     const configRepoToken = core.getInput('config-repo-token') || process.env.ESB_ACE12_ORG_REPO_TOKEN;
     const skipReadmeValidation = core.getInput('skip-readme-validation') === 'true';
     
+    const workspaceDir = getWorkspaceDir();
+    
     core.info('🚀 Starting ESB/ACE12 Checklist Validation');
     core.info(`Node.js version: ${process.version}`);
+    core.info(`Workspace directory: ${workspaceDir}`);
     
     // Get context
     const context = github.context;
@@ -56,26 +67,35 @@ async function run() {
       core.startGroup('📄 Validación: README y Grupos de Ejecución');
       try {
         // Check README exists
-        const readmeExists = await validateReadmeExistence();
+        const readmeExists = await validateReadmeExistence(workspaceDir);
         results.readmeExistence = readmeExists;
         core.info('✅ README.md encontrado');
         
         // Validate README template
         if (readmeExists) {
-          results.readmeTemplate = await validateReadmeTemplate();
+          results.readmeTemplate = await validateReadmeTemplate(workspaceDir);
           core.info('✅ Plantilla README válida');
           
           // Validate execution groups
           if (configRepoToken) {
-            results.executionGroups = await validateExecutionGroups(configRepoToken);
+            results.executionGroups = await validateExecutionGroups(configRepoToken, workspaceDir);
             core.info('✅ Grupos de ejecución coinciden');
           } else {
             core.warning('⚠️  Token de configuración no provisto, saltando validación de grupos de ejecución');
+            results.executionGroups = true; // Mark as passed if skipped
           }
         }
       } catch (error) {
-        core.error(`❌ ${error.message}`);
-        results.readmeTemplate = false;
+        core.error(`❌ Error en validación de README: ${error.message}`);
+        if (error.stack) {
+          core.debug(error.stack);
+        }
+        // Set specific result based on which validation failed
+        if (results.readmeExistence === null) {
+          results.readmeExistence = false;
+        } else {
+          results.readmeTemplate = false;
+        }
       }
       core.endGroup();
     } else {
@@ -86,7 +106,7 @@ async function run() {
     core.startGroup('🔍 Revisiones: Repositorio');
     try {
       // Validate no BD folders
-      results.bdFolders = await validateNoBDFolders();
+      results.bdFolders = await validateNoBDFolders(workspaceDir);
       core.info('✅ No se encontraron carpetas BD');
       
       // Validate reviewers and routes
@@ -152,8 +172,8 @@ async function validateBranchName(payload) {
 /**
  * Validate README.md exists
  */
-async function validateReadmeExistence() {
-  const readmePath = path.join(process.cwd(), 'README.md');
+async function validateReadmeExistence(workspaceDir = process.cwd()) {
+  const readmePath = path.join(workspaceDir, 'README.md');
   
   if (!fs.existsSync(readmePath)) {
     throw new Error('No se encontró el archivo README.md en la raíz del repositorio');
@@ -166,8 +186,8 @@ async function validateReadmeExistence() {
  * Validate README template with comprehensive feedback
  * Validates all sections and subsections, collecting all errors before failing
  */
-async function validateReadmeTemplate() {
-  const readmePath = path.join(process.cwd(), 'README.md');
+async function validateReadmeTemplate(workspaceDir = process.cwd()) {
+  const readmePath = path.join(workspaceDir, 'README.md');
   const content = fs.readFileSync(readmePath, 'utf8');
   
   // Collect notices and errors to provide comprehensive feedback
@@ -644,7 +664,7 @@ async function validateReadmeTemplate() {
         }
         return null;
       }
-      const projectFile = findProjectFile(process.cwd());
+      const projectFile = findProjectFile(workspaceDir);
       if (!projectFile) {
         notices.push('No se encontró archivo .project para validar los servicios.');
       } else {
@@ -806,7 +826,7 @@ async function validateReadmeTemplate() {
 /**
  * Validate no BD folders exist
  */
-async function validateNoBDFolders() {
+async function validateNoBDFolders(workspaceDir = process.cwd()) {
   const findBDFolders = (dir, results = []) => {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
     
@@ -827,7 +847,7 @@ async function validateNoBDFolders() {
     return results;
   };
   
-  const bdFolders = findBDFolders(process.cwd());
+  const bdFolders = findBDFolders(workspaceDir);
   
   if (bdFolders.length > 0) {
     throw new Error(`Se encontraron carpetas 'BD' en el repositorio:\n${bdFolders.join('\n')}`);
@@ -839,9 +859,9 @@ async function validateNoBDFolders() {
 /**
  * Validate execution groups match central configuration
  */
-async function validateExecutionGroups(token) {
+async function validateExecutionGroups(token, workspaceDir = process.cwd()) {
   try {
-    const readmePath = path.join(process.cwd(), 'README.md');
+    const readmePath = path.join(workspaceDir, 'README.md');
     const content = fs.readFileSync(readmePath, 'utf8');
     
     // Extract service name from README title
