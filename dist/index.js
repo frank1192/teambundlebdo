@@ -77,40 +77,48 @@ async function run() {
     // Job 2: Validate README existence and template (grouped)
     if (!skipReadmeValidation) {
       core.startGroup('📄 Validación: README y Grupos de Ejecución');
+      
+      // Check README exists
       try {
-        // Check README exists
         const readmeExists = await validateReadmeExistence(workspaceDir);
         results.readmeExistence = readmeExists;
         core.info('✅ README.md encontrado');
-        
-        // Validate README template
-        if (readmeExists) {
+      } catch (error) {
+        core.error(`❌ Error en validación de existencia README: ${error.message}`);
+        results.readmeExistence = false;
+      }
+      
+      // Validate README template
+      if (results.readmeExistence) {
+        try {
           results.readmeTemplate = await validateReadmeTemplate(workspaceDir);
           core.info('✅ Plantilla README válida');
-          
-          // Validate execution groups
-          if (configRepoToken) {
-            results.executionGroups = await validateExecutionGroups(configRepoToken, workspaceDir);
-            core.info('✅ Grupos de ejecución coinciden');
-          } else {
-            core.warning('⚠️  Token de configuración no provisto, saltando validación de grupos de ejecución');
-            results.executionGroups = true; // Mark as passed if skipped
+        } catch (error) {
+          core.error(`❌ Error en validación de plantilla README: ${error.message}`);
+          if (error.stack) {
+            core.debug(error.stack);
           }
-        }
-      } catch (error) {
-        core.error(`❌ Error en validación de README: ${error.message}`);
-        if (error.stack) {
-          core.debug(error.stack);
-        }
-        // Set specific result based on which validation failed
-        if (results.readmeExistence === null) {
-          results.readmeExistence = false;
-        } else if (results.readmeTemplate === null) {
           results.readmeTemplate = false;
-        } else if (results.executionGroups === null) {
-          results.executionGroups = false;
         }
       }
+      
+      // Validate execution groups - INDEPENDIENTE de si la plantilla falló
+      if (results.readmeExistence && configRepoToken) {
+        try {
+          results.executionGroups = await validateExecutionGroups(configRepoToken, workspaceDir);
+          core.info('✅ Grupos de ejecución coinciden');
+        } catch (error) {
+          core.error(`❌ Error en validación de grupos de ejecución: ${error.message}`);
+          if (error.stack) {
+            core.debug(error.stack);
+          }
+          results.executionGroups = false;
+        }
+      } else if (!configRepoToken) {
+        core.warning('⚠️  Token de configuración no provisto, saltando validación de grupos de ejecución');
+        results.executionGroups = true; // Mark as passed if skipped
+      }
+      
       core.endGroup();
     } else {
       core.info('⏭️  Validación de README omitida (skip-readme-validation=true)');
