@@ -894,25 +894,40 @@ async function validateExecutionGroups(token, workspaceDir = process.cwd()) {
     core.info(`📝 Servicio detectado: ESB_ACE12_${serviceName}`);
     
     // Extract groups from README - must search within "Procedimiento de despliegue" section
-    const deploymentSectionMatch = content.match(/^## Procedimiento de despliegue\s*\n([\s\S]*?)(?=\n## |$)/im);
+    const deploymentSectionMatch = content.match(/^## Procedimiento de despliegue\s*$([\s\S]*?)(?=^## |\Z)/im);
     if (!deploymentSectionMatch) {
       throw new Error('No se encontró la sección "## Procedimiento de despliegue" en el README');
     }
     
     const deploymentSection = deploymentSectionMatch[1];
-    const deploymentMatch = deploymentSection.match(/desplegar en los grupos de ejecución:\s*\n?([^\n#]+)/i);
+    const deploymentMatch = deploymentSection.match(/desplegar en los grupos de ejecución:\s*([^\n#]+)/i);
     
     if (!deploymentMatch) {
       throw new Error(`No se encontró la frase "desplegar en los grupos de ejecución:" en el procedimiento de despliegue para el servicio '${serviceName}'`);
     }
     
-    const readmeGroups = deploymentMatch[1]
+    // Extract groups - could be on same line or next line
+    let groupsText = deploymentMatch[1].trim();
+    
+    // If empty, try to get from next line
+    if (!groupsText) {
+      const nextLineMatch = deploymentSection.match(/desplegar en los grupos de ejecución:\s*\n\s*([^\n#]+)/i);
+      if (nextLineMatch && nextLineMatch[1]) {
+        groupsText = nextLineMatch[1].trim();
+      }
+    }
+    
+    if (!groupsText) {
+      throw new Error(`No se pudieron extraer los grupos de ejecución para el servicio '${serviceName}'. La frase "desplegar en los grupos de ejecución:" se encontró pero no hay grupos especificados después.`);
+    }
+    
+    const readmeGroups = groupsText
       .split(/[\s,]+/)
       .filter(g => g.trim())
       .map(g => g.toLowerCase());
     
     if (readmeGroups.length === 0) {
-      throw new Error(`No se pudieron extraer los grupos de ejecución para el servicio '${serviceName}'. Verifica que estén después de 'desplegar en los grupos de ejecución:' en la misma línea o en la siguiente. Línea encontrada: ${deploymentMatch[0]}`);
+      throw new Error(`No se pudieron extraer los grupos de ejecución para el servicio '${serviceName}'. Verifica que estén después de 'desplegar en los grupos de ejecución:' en la misma línea o en la siguiente.`);
     }
     
     core.info(`📚 Grupos en README (${readmeGroups.length}): ${readmeGroups.join(', ')}`);

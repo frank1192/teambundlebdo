@@ -43,6 +43,44 @@ Esta es la nomenclatura estándar y oficial para invocar esta acción en tus wor
 
 ---
 
+## ⚠️ IMPORTANTE: Configuración del Token para Validación de Grupos
+
+La validación de grupos de ejecución **REQUIERE** que pases explícitamente el secret `ESB_ACE12_ORG_REPO_TOKEN` como input.
+
+### ❌ INCORRECTO (NO funcionará):
+
+```yaml
+# ❌ Esto NO funciona - las GitHub Actions no heredan secrets automáticamente
+jobs:
+  validacion:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bocc-principal/ESB_ACE12_Validate_Readme_Action@main
+        # Falta: config-repo-token
+```
+
+### ✅ CORRECTO:
+
+```yaml
+# ✅ Esto SÍ funciona - el secret se pasa explícitamente
+jobs:
+  validacion:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bocc-principal/ESB_ACE12_Validate_Readme_Action@main
+        with:
+          config-repo-token: ${{ secrets.ESB_ACE12_ORG_REPO_TOKEN }}  # ← REQUERIDO
+```
+
+**¿Qué pasa si no lo pasas?**
+- La acción mostrará: `Config repo token: ❌ Not provided (validación de grupos se omitirá)`
+- La validación de grupos de ejecución se saltará
+- El workflow pasará aunque el README no tenga grupos definidos
+
+---
+
 ## 📖 SECCIÓN 1: Cómo Llamar el Flujo desde Otros Repositorios
 
 ### Uso Básico
