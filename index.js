@@ -99,8 +99,10 @@ async function run() {
         // Set specific result based on which validation failed
         if (results.readmeExistence === null) {
           results.readmeExistence = false;
-        } else {
+        } else if (results.readmeTemplate === null) {
           results.readmeTemplate = false;
+        } else if (results.executionGroups === null) {
+          results.executionGroups = false;
         }
       }
       core.endGroup();
