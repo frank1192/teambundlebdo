@@ -379,6 +379,51 @@ Definidos en `package.json`:
 
 ### Troubleshooting
 
+#### Error: "Validación de grupos de ejecución falla"
+
+**Causa**: El token `ESB_ACE12_ORG_REPO_TOKEN` no está configurado o no tiene los permisos adecuados.
+
+**Solución**:
+1. Verificar que el secret `ESB_ACE12_ORG_REPO_TOKEN` existe:
+   - Para repos de organización: Settings → Secrets and variables → Actions
+   - Revisar que tenga acceso al repositorio actual
+2. Verificar que el token tiene permisos `repo` (contents:read) en `bocc-principal/ESB_ACE12_General_Configs`
+3. El token debe ser un Personal Access Token (classic) con scope `repo`
+4. Si ves logs como "Config repo token: ❌ Not provided", el secret no está disponible
+5. En el workflow, asegurar que se pasa el token:
+   ```yaml
+   with:
+     config-repo-token: ${{ secrets.ESB_ACE12_ORG_REPO_TOKEN }}
+   ```
+
+**Logs útiles para diagnosticar**:
+- La acción muestra al inicio si el token está provisto (✅ Provided / ❌ Not provided)
+- Si no se descarga el archivo de configuración, verás el error específico
+- Revisa la sección "Validación: README y Grupos de Ejecución" en los logs del workflow
+
+#### Error: "No se pudo descargar el archivo de configuración central"
+
+**Causa**: El token no tiene acceso al repositorio `bocc-principal/ESB_ACE12_General_Configs` o el repositorio no existe.
+
+**Solución**:
+1. Verificar que el repositorio existe: `bocc-principal/ESB_ACE12_General_Configs`
+2. Verificar que el archivo existe en la ruta: `ace-12-common-properties/esb-ace12-general-integration-servers.properties`
+3. Regenerar el token con permisos correctos
+4. El token debe tener acceso de lectura al repositorio privado
+
+#### Error: "No existe entry ESB_ACE12_{Servicio}.Transactional ni .Notification"
+
+**Causa**: El servicio no está registrado en el archivo de configuración central.
+
+**Solución**:
+1. Revisar que el título del README coincida con el formato: `# ESB_ACE12_{NombreServicio}`
+2. Agregar las entradas correspondientes al archivo `esb-ace12-general-integration-servers.properties`:
+   ```properties
+   ESB_ACE12_{NombreServicio}.Transactional=GRUPO1,GRUPO2
+   ESB_ACE12_{NombreServicio}.Notification=GRUPO3
+   ```
+3. Los nombres deben coincidir exactamente (sin considerar mayúsculas/minúsculas)
+
 #### Error: "Cannot find module '@actions/core'"
 
 **Solución**: Ejecutar `npm install` antes de compilar.

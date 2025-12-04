@@ -34,6 +34,12 @@ async function run() {
     core.info(`Node.js version: ${process.version}`);
     core.info(`Workspace directory: ${workspaceDir}`);
     
+    // Log token status (without exposing values)
+    core.info(`GitHub token: ${token ? '✅ Provided' : '❌ Not provided'}`);
+    core.info(`Config repo token: ${configRepoToken ? '✅ Provided' : '❌ Not provided'}`);
+    core.info(`Skip README validation: ${skipReadmeValidation}`);
+    core.info('');
+    
     // Get context
     const context = github.context;
     const { payload } = context;
@@ -867,6 +873,13 @@ async function validateNoBDFolders(workspaceDir = process.cwd()) {
  */
 async function validateExecutionGroups(token, workspaceDir = process.cwd()) {
   try {
+    core.info('🔍 Iniciando validación de grupos de ejecución');
+    
+    if (!token) {
+      core.warning('⚠️  Token de configuración no provisto, saltando validación de grupos de ejecución');
+      return true;
+    }
+    
     const readmePath = path.join(workspaceDir, 'README.md');
     const content = fs.readFileSync(readmePath, 'utf8');
     
@@ -881,6 +894,8 @@ async function validateExecutionGroups(token, workspaceDir = process.cwd()) {
       serviceName = serviceName.substring(6);
     }
     
+    core.info(`📝 Servicio detectado: ESB_ACE12_${serviceName}`);
+    
     // Extract groups from README
     const deploymentMatch = content.match(/desplegar en los grupos de ejecución:\s*\n?([^\n#]+)/i);
     if (!deploymentMatch) {
@@ -893,7 +908,10 @@ async function validateExecutionGroups(token, workspaceDir = process.cwd()) {
       .filter(g => g.trim())
       .map(g => g.toLowerCase());
     
+    core.info(`📚 Grupos en README (${readmeGroups.length}): ${readmeGroups.join(', ')}`);
+    
     // Download central configuration using @actions/github
+    core.info('📥 Descargando configuración central desde ESB_ACE12_General_Configs...');
     const octokit = github.getOctokit(token);
     let response;
     
@@ -908,10 +926,13 @@ async function validateExecutionGroups(token, workspaceDir = process.cwd()) {
       throw new Error(`No se pudo descargar el archivo de configuración central: ${error.message}`);
     }
     
+    core.info('✅ Configuración central descargada exitosamente');
+    
     // Decode base64 content
     const configContent = Buffer.from(response.data.content, 'base64').toString('utf8');
     
     // Extract groups from config
+    core.info(`🔍 Buscando entradas para ESB_ACE12_${serviceName}...`);
     const transactionalMatch = configContent.match(new RegExp(`ESB_ACE12_${serviceName}\\.Transactional=([^\n]+)`, 'i'));
     const notificationMatch = configContent.match(new RegExp(`ESB_ACE12_${serviceName}\\.Notification=([^\n]+)`, 'i'));
     
@@ -919,12 +940,22 @@ async function validateExecutionGroups(token, workspaceDir = process.cwd()) {
       throw new Error(`No existe entry ESB_ACE12_${serviceName}.Transactional ni ESB_ACE12_${serviceName}.Notification en el archivo de configuración`);
     }
     
+    if (transactionalMatch) {
+      core.info(`ℹ️  ESB_ACE12_${serviceName}.Transactional = ${transactionalMatch[1]}`);
+    }
+    if (notificationMatch) {
+      core.info(`ℹ️  ESB_ACE12_${serviceName}.Notification = ${notificationMatch[1]}`);
+    }
+    
     const configGroups = [
       ...(transactionalMatch ? transactionalMatch[1].split(',') : []),
       ...(notificationMatch ? notificationMatch[1].split(',') : [])
     ].map(g => g.trim().toLowerCase());
     
+    core.info(`⚙️  Grupos en config (${configGroups.length}): ${configGroups.join(', ')}`);
+    
     // Compare groups
+    core.info('🔍 Comparando grupos...');
     const missingInConfig = readmeGroups.filter(g => !configGroups.includes(g));
     const missingInReadme = configGroups.filter(g => !readmeGroups.includes(g));
     
