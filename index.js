@@ -163,14 +163,18 @@ async function validateReadmeExistence() {
 }
 
 /**
- * Validate README template (simplified version - delegates to bash script for complex validations)
+ * Validate README template with comprehensive feedback
+ * Validates all sections and subsections, collecting all errors before failing
  */
 async function validateReadmeTemplate() {
   const readmePath = path.join(process.cwd(), 'README.md');
   const content = fs.readFileSync(readmePath, 'utf8');
+  
   // Collect notices and errors to provide comprehensive feedback
   const notices = [];
   const errors = [];
+  
+  core.info('🔍 Iniciando validación de estructura del README.md');
 
   // Helper: get section content between a header and the next '## ' header
   function getSection(headerRegex) {
@@ -200,9 +204,21 @@ async function validateReadmeTemplate() {
     return tail.trim();
   }
 
-  // Basic required sections check
+  // ===== 1. VALIDACIÓN DE TÍTULO PRINCIPAL =====
+  core.info('✅ Validando título principal del Servicio \'# ESB_...\'');
+  
+  const titleMatch = content.match(/^#\s*ESB_(.+)$/m);
+  if (!titleMatch || !titleMatch[1] || titleMatch[1].trim() === '' || /^[_-]+\.?$/.test(titleMatch[1].trim())) {
+    core.error('❌ El título no puede ser solo "ESB_" o "ESB_" seguido solo de guiones. Debe agregar un nombre descriptivo del repositorio después de ESB_');
+    errors.push('El título no puede ser solo "ESB_" o "ESB_" seguido solo de guiones');
+  } else {
+    const cleanTitle = titleMatch[0].replace(/^#\s*/, '');
+    core.info(`::notice title=Validación de README.md::✅ Título principal encontrado y válido: ${cleanTitle}`);
+    notices.push(`Título principal encontrado y válido: ${cleanTitle}`);
+  }
+
+  // ===== 2. VALIDACIÓN DE SECCIONES REQUERIDAS (QUICK CHECK) =====
   const requiredSections = [
-    '# ESB_',
     '## INFORMACIÓN DEL SERVICIO',
     '## Procedimiento de despliegue',
     '## ACCESO AL SERVICIO',
@@ -213,49 +229,54 @@ async function validateReadmeTemplate() {
   ];
 
   for (const section of requiredSections) {
-    if (!content.match(new RegExp('^' + section.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&'), 'm'))) {
+    if (!content.match(new RegExp('^' + section.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&'), 'mi'))) {
+      core.error(`❌ Falta sección requerida: ${section}`);
       errors.push(`Falta sección requerida: ${section}`);
-    } else {
-      notices.push(`Encabezado '${section}' encontrado`);
     }
   }
 
-  // Title validations
-  const titleMatch = content.match(/^#\s*ESB_(.+)$/m);
-  if (!titleMatch || !titleMatch[1] || titleMatch[1].trim() === '' || /^[_-]+\.?$/.test(titleMatch[1].trim())) {
-    errors.push('El título no puede ser solo "ESB_" o "ESB_" seguido solo de guiones');
-  } else {
-    notices.push(`Título principal encontrado y válido: ${titleMatch[0].replace(/^#\s*/, '')}`);
-  }
-
-  // boc200 check
+  // ===== 3. VALIDACIÓN DE URLs boc200 (CRÍTICO) =====
   if (content.includes('boc200')) {
+    core.error('❌ URLs con boc200 detectadas. Los endpoints de DataPower deben comenzar con \'https://boc201\' (NO \'https://boc200\')');
     errors.push('URLs con boc200 detectadas. Deben usar boc201');
   }
 
-  // 1) INFORMACIÓN DEL SERVICIO -> check content and subsection Último despliege
+  // ===== 4. INFORMACIÓN DEL SERVICIO =====
+  core.info('✅ Validando sección \'## INFORMACIÓN DEL SERVICIO\'');
+  
   const infoServicio = getSection('^##\\s*INFORMACIÓN DEL SERVICIO');
   if (!infoServicio) {
+    core.error('❌ Falta el encabezado \'## INFORMACIÓN DEL SERVICIO\'');
     errors.push("Falta el encabezado '## INFORMACIÓN DEL SERVICIO'");
   } else {
+    core.info('::notice title=Validación de README.md::Encabezado \'## INFORMACIÓN DEL SERVICIO\' encontrado');
+    
     // extract lines after header until first ###
     const afterHeader = infoServicio.replace(/^##.*\n?/, '');
     const beforeSub = afterHeader.split(/^### /m)[0].trim();
     if (!beforeSub) {
+      core.error('❌ La sección \'## INFORMACIÓN DEL SERVICIO\' no contiene información descriptiva antes de las subsecciones. Debe agregar una descripción del servicio antes de \'### Último despliegue\'.');
       errors.push("La sección '## INFORMACIÓN DEL SERVICIO' no contiene información descriptiva antes de las subsecciones.");
     } else {
+      core.info('::notice title=Validación de README.md::✅ La sección \'## INFORMACIÓN DEL SERVICIO\' contiene información descriptiva');
       notices.push("La sección '## INFORMACIÓN DEL SERVICIO' contiene información descriptiva");
     }
 
-    // Último despliege
+    // ===== 4.1 Subsección Último despliege =====
+    core.info('✅ Validando subsección \'### Último despliege\'');
+    
     const ultimo = getSubsection('^###\\s*Último despliege');
     if (!ultimo) {
+      core.error('❌ Falta subsección \'### Último despliege\' en la sección \'INFORMACIÓN DEL SERVICIO\'');
       errors.push("Falta subsección '### Último despliege' en la sección 'INFORMACIÓN DEL SERVICIO'");
     } else {
+      core.info('::notice title=Validación de README.md::Subsección \'### Último despliege\' encontrada');
       notices.push("Subsección '### Último despliege' encontrada");
       // look for table header
       if (/\|\s*CQ\s*\|\s*JIRA\s*\|\s*Fecha\s*\|/i.test(ultimo)) {
+        core.info('::notice title=Validación de README.md::✅ Encabezado de tabla \'Último despliege\' encontrado');
         notices.push("Encabezado de tabla 'Último despliege' encontrado");
+        
         // find first data row after separator line with ---
         const lines = ultimo.split(/\r?\n/);
         let dataRow = null;
@@ -272,43 +293,61 @@ async function validateReadmeTemplate() {
           }
         }
         if (!dataRow) {
+          core.error('❌ La tabla \'Último despliege\' no tiene fila de datos. Debe incluir al menos una fila con valores o \'NA\' en cada columna.');
           errors.push("La tabla 'Último despliege' no tiene fila de datos. Debe incluir al menos una fila con valores o 'NA' en cada columna.");
         } else {
           // split cells
           const cells = dataRow.replace(/^\||\|$/g, '').split('|').map(s => s.trim());
           const empty = cells.some(c => c === '');
           if (empty) {
+            core.error('❌ La tabla \'Último despliege\' tiene celdas vacías en la fila de datos. Si no hay valor, debe colocarse \'NA\' en cada columna (CQ, JIRA, Fecha).');
             errors.push("La tabla 'Último despliege' tiene celdas vacías en la fila de datos. Si no hay valor, debe colocarse 'NA' en cada columna (CQ, JIRA, Fecha).");
           } else {
+            core.info('::notice title=Validación de README.md::✅ La tabla \'Último despliege\' es válida (todas las celdas tienen valores)');
             notices.push("La tabla 'Último despliege' es válida (todas las celdas tienen valores)");
           }
         }
       } else {
+        core.error('❌ La tabla \'Último despliege\' no tiene el formato correcto. Debe incluir el encabezado: |CQ |JIRA | Fecha|');
         errors.push("La tabla 'Último despliege' no tiene el formato correcto. Debe incluir el encabezado: |CQ |JIRA | Fecha|");
       }
     }
   }
 
-  // 2) Procedimiento de despliegue
+  // ===== 5. PROCEDIMIENTO DE DESPLIEGUE =====
+  core.info('✅ Validando sección \'## Procedimiento de despliegue\'');
+  
   const procedimiento = getSection('^##\\s*Procedimiento de despliegue');
   if (!procedimiento) {
+    core.error('❌ No se encontró el encabezado \'## Procedimiento de despliegue\'');
     errors.push("No se encontró el encabezado '## Procedimiento de despliegue'");
   } else {
+    core.info('::notice title=Validación de README.md::Encabezado \'## Procedimiento de despliegue\' encontrado');
+    
     const body = procedimiento.replace(/^##.*\n?/, '').trim();
     if (!body) {
+      core.error('❌ La sección \'## Procedimiento de despliegue\' está vacía. Agrega instrucciones de despliegue debajo del encabezado.');
       errors.push("La sección '## Procedimiento de despliegue' está vacía. Agrega instrucciones de despliegue debajo del encabezado.");
     } else {
+      core.info('::notice title=Validación de README.md::✅ La sección \'## Procedimiento de despliegue\' contiene contenido');
       notices.push("La sección '## Procedimiento de despliegue' contiene contenido");
     }
   }
 
-  // 3) ACCESO AL SERVICIO and DataPower subsections
+  // ===== 6. ACCESO AL SERVICIO =====
+  core.info('✔️ Validando sección \'## ACCESO AL SERVICIO\'');
+  
   const acceso = getSection('^##\\s*ACCESO AL SERVICIO');
   if (!acceso) {
+    core.error('❌ Falta sección \'ACCESO AL SERVICIO\'');
     errors.push("Falta sección 'ACCESO AL SERVICIO'");
   } else {
+    core.info('::notice title=Validación de README.md::Sección \'ACCESO AL SERVICIO\' válida');
     notices.push("Sección 'ACCESO AL SERVICIO' válida");
-    // check DataPower Externo and Interno
+    
+    // ===== 6.1. DataPower Externo e Interno =====
+    core.info('✔️ Validando subsecciones DataPower Externo/Interno');
+    
     const dpExterno = getSubsection('^###\\s*DataPower Externo');
     const dpInterno = getSubsection('^###\\s*DataPower Interno');
 
@@ -334,8 +373,11 @@ async function validateReadmeTemplate() {
     }
 
     function validateDatapowerTable(sectionName, sectionText, isExterno) {
+      core.info(`✔️ Validando contenido de tabla ${sectionName}`);
+      
       const rows = extractTableRows(sectionText);
       if (rows.length === 0) {
+        core.error(`❌ No se encontraron filas de datos en tabla ${sectionName}. Debe contener al menos una fila con datos o valores 'NA'.`);
         errors.push(`No se encontraron filas de datos en tabla ${sectionName}. Debe contener al menos una fila con datos o valores 'NA'.`);
         return;
       }
@@ -354,66 +396,113 @@ async function validateReadmeTemplate() {
           all_na = false;
           // perform validations per ambiente
           if (/^DESARROLLO/i.test(ambiente)) { has_des = true;
-            if (datapower && datapower !== 'NA' && !/^BODP.*DEV$/i.test(datapower)) errors.push(`Datapower en DESARROLLO debe comenzar con BODP y terminar con DEV. Encontrado: ${datapower}`);
-            if (endpoint && endpoint !== 'NA' && !/^https:\/\/boc201\.des\.app\.bancodeoccidente\.net/i.test(endpoint)) errors.push(`Endpoint en DESARROLLO debe comenzar con https://boc201.des.app.bancodeoccidente.net Encontrado: ${endpoint}`);
+            if (datapower && datapower !== 'NA' && !/^BODP.*DEV$/i.test(datapower)) {
+              core.error(`❌ Error en ${sectionName}: Datapower en DESARROLLO debe comenzar con BODP y terminar con DEV. Encontrado: ${datapower}`);
+              errors.push(`Datapower en DESARROLLO debe comenzar con BODP y terminar con DEV. Encontrado: ${datapower}`);
+            }
+            if (endpoint && endpoint !== 'NA' && !/^https:\/\/boc201\.des\.app\.bancodeoccidente\.net/i.test(endpoint)) {
+              core.error(`❌ Error en ${sectionName}: Endpoint en DESARROLLO debe comenzar con https://boc201.des.app.bancodeoccidente.net Encontrado: ${endpoint}`);
+              errors.push(`Endpoint en DESARROLLO debe comenzar con https://boc201.des.app.bancodeoccidente.net Encontrado: ${endpoint}`);
+            }
           }
           if (/^CALIDAD/i.test(ambiente)) { has_cal = true;
-            if (datapower && datapower !== 'NA' && !/^BODP.*QAS$/i.test(datapower)) errors.push(`Datapower en CALIDAD debe comenzar con BODP y terminar con QAS. Encontrado: ${datapower}`);
+            if (datapower && datapower !== 'NA' && !/^BODP.*QAS$/i.test(datapower)) {
+              core.error(`❌ Error en ${sectionName}: Datapower en CALIDAD debe comenzar con BODP y terminar con QAS. Encontrado: ${datapower}`);
+              errors.push(`Datapower en CALIDAD debe comenzar con BODP y terminar con QAS. Encontrado: ${datapower}`);
+            }
             if (endpoint && endpoint !== 'NA') {
               if (isExterno) {
-                if (!/^https:\/\/boc201\.testdmz\.app\.bancodeoccidente\.net/i.test(endpoint)) errors.push(`Endpoint en CALIDAD (Externo) debe comenzar con https://boc201.testdmz.app.bancodeoccidente.net Encontrado: ${endpoint}`);
+                if (!/^https:\/\/boc201\.testdmz\.app\.bancodeoccidente\.net/i.test(endpoint)) {
+                  core.error(`❌ Error en ${sectionName} (Externo): Endpoint en CALIDAD debe comenzar con https://boc201.testdmz.app.bancodeoccidente.net Encontrado: ${endpoint}`);
+                  errors.push(`Endpoint en CALIDAD (Externo) debe comenzar con https://boc201.testdmz.app.bancodeoccidente.net Encontrado: ${endpoint}`);
+                }
               } else {
-                if (!/^https:\/\/boc201\.testint\.app\.bancodeoccidente\.net/i.test(endpoint)) errors.push(`Endpoint en CALIDAD (Interno) debe comenzar con https://boc201.testint.app.bancodeoccidente.net Encontrado: ${endpoint}`);
+                if (!/^https:\/\/boc201\.testint\.app\.bancodeoccidente\.net/i.test(endpoint)) {
+                  core.error(`❌ Error en ${sectionName} (Interno): Endpoint en CALIDAD debe comenzar con https://boc201.testint.app.bancodeoccidente.net Encontrado: ${endpoint}`);
+                  errors.push(`Endpoint en CALIDAD (Interno) debe comenzar con https://boc201.testint.app.bancodeoccidente.net Encontrado: ${endpoint}`);
+                }
               }
             }
           }
           if (/^PRODUCCION/i.test(ambiente)) { has_prd = true;
-            if (datapower && datapower !== 'NA' && !/^BODP.*PRD$/i.test(datapower)) errors.push(`Datapower en PRODUCCION debe comenzar con BODP y terminar con PRD. Encontrado: ${datapower}`);
+            if (datapower && datapower !== 'NA' && !/^BODP.*PRD$/i.test(datapower)) {
+              core.error(`❌ Error en ${sectionName}: Datapower en PRODUCCION debe comenzar con BODP y terminar con PRD. Encontrado: ${datapower}`);
+              errors.push(`Datapower en PRODUCCION debe comenzar con BODP y terminar con PRD. Encontrado: ${datapower}`);
+            }
             if (endpoint && endpoint !== 'NA') {
               if (isExterno) {
-                if (!/^https:\/\/boc201\.prddmz\.app\.bancodeoccidente\.net/i.test(endpoint)) errors.push(`Endpoint en PRODUCCION (Externo) debe comenzar con https://boc201.prddmz.app.bancodeoccidente.net. Encontrado: ${endpoint}`);
+                if (!/^https:\/\/boc201\.prddmz\.app\.bancodeoccidente\.net/i.test(endpoint)) {
+                  core.error(`❌ Error en ${sectionName} (Externo): Endpoint en PRODUCCION debe comenzar con https://boc201.prddmz.app.bancodeoccidente.net. Encontrado: ${endpoint}`);
+                  errors.push(`Endpoint en PRODUCCION (Externo) debe comenzar con https://boc201.prddmz.app.bancodeoccidente.net. Encontrado: ${endpoint}`);
+                }
               } else {
-                if (!/^https:\/\/boc201\.prdint\.app\.bancodeoccidente\.net/i.test(endpoint)) errors.push(`Endpoint en PRODUCCION (Interno) debe comenzar con https://boc201.prdint.app.bancodeoccidente.net. Encontrado: ${endpoint}`);
+                if (!/^https:\/\/boc201\.prdint\.app\.bancodeoccidente\.net/i.test(endpoint)) {
+                  core.error(`❌ Error en ${sectionName} (Interno): Endpoint en PRODUCCION debe comenzar con https://boc201.prdint.app.bancodeoccidente.net. Encontrado: ${endpoint}`);
+                  errors.push(`Endpoint en PRODUCCION (Interno) debe comenzar con https://boc201.prdint.app.bancodeoccidente.net. Encontrado: ${endpoint}`);
+                }
               }
             }
           }
         }
       }
-      if (!has_des) errors.push(`Tabla ${sectionName} debe tener al menos una endpoint para DESARROLLO`);
-      if (!has_cal) errors.push(`Tabla ${sectionName} debe tener al menos una endpoint para CALIDAD`);
-      if (!has_prd) errors.push(`Tabla ${sectionName} debe tener al menos una endpoint para PRODUCCION`);
+      if (!has_des) {
+        core.error(`❌ Tabla ${sectionName} debe tener al menos una endpoint para DESARROLLO`);
+        errors.push(`Tabla ${sectionName} debe tener al menos una endpoint para DESARROLLO`);
+      }
+      if (!has_cal) {
+        core.error(`❌ Tabla ${sectionName} debe tener al menos una endpoint para CALIDAD`);
+        errors.push(`Tabla ${sectionName} debe tener al menos una endpoint para CALIDAD`);
+      }
+      if (!has_prd) {
+        core.error(`❌ Tabla ${sectionName} debe tener al menos una endpoint para PRODUCCION`);
+        errors.push(`Tabla ${sectionName} debe tener al menos una endpoint para PRODUCCION`);
+      }
       if (all_na) {
+        core.info(`::notice title=Validación de README.md::Tabla ${sectionName} contiene solo valores NA (válido)`);
         notices.push(`Tabla ${sectionName} contiene solo valores NA (válido)`);
       } else {
+        core.info(`::notice title=Validación de README.md::✅ Tabla ${sectionName} validada correctamente`);
         notices.push(`Tabla ${sectionName} validada correctamente`);
       }
     }
 
     if (!hasExterno && !hasInterno) {
+      core.error('❌ Falta subsección DataPower Externo o Interno');
       errors.push('Falta subsección DataPower Externo o Interno');
     } else {
       if (hasExterno) {
         if (isOnlyNA(dpExterno)) {
+          core.info('::notice title=Validación de README.md::DataPower Externo contiene solo \'NA\'/\'N/A\'/\'No Aplica\' (válido - sin tabla)');
           notices.push("DataPower Externo contiene solo 'NA'/'N/A'/'No Aplica' (válido - sin tabla)");
         } else {
           validateDatapowerTable('DataPower Externo', dpExterno, true);
         }
+      } else {
+        core.warning('⚠️  Recomendación: No se encontró subsección \'DataPower Externo\'. Si el servicio requiere apuntamiento externo, agregarlo.');
       }
       if (hasInterno) {
         if (isOnlyNA(dpInterno)) {
+          core.info('::notice title=Validación de README.md::DataPower Interno contiene solo \'NA\'/\'N/A\'/\'No Aplica\' (válido - sin tabla)');
           notices.push("DataPower Interno contiene solo 'NA'/'N/A'/'No Aplica' (válido - sin tabla)");
         } else {
           validateDatapowerTable('DataPower Interno', dpInterno, false);
         }
+      } else {
+        core.warning('⚠️  Recomendación: No se encontró subsección \'DataPower Interno\'. Si el servicio requiere apuntamiento interno, agregarlo.');
       }
     }
   }
 
-  // 4) Endpoint BUS
+  // ===== 6.2. Endpoint BUS =====
+  core.info('✔️ Validando subsección \'### Endpoint BUS\'');
+  
   const endpointBusSection = getSubsection('^###\\s*Endpoint BUS');
   if (!endpointBusSection) {
+    core.error('❌ Falta subsección \'Endpoint BUS\'');
     errors.push("Falta subsección 'Endpoint BUS'");
   } else {
+    core.info('::notice title=Validación de README.md::Subsección \'Endpoint BUS\' válida');
+    
     const rows = (endpointBusSection.split(/\r?\n/).filter(l => /^\|/.test(l))).slice();
     // find data rows after separator
     let dataRows = [];
@@ -423,6 +512,7 @@ async function validateReadmeTemplate() {
       if (inTable) dataRows.push(line);
     }
     if (dataRows.length === 0) {
+      core.error('❌ Tabla Endpoint BUS no tiene filas de datos');
       errors.push('Tabla Endpoint BUS no tiene filas de datos');
     } else {
       let has_des = false, has_cal = false, has_prd = false;
@@ -432,52 +522,105 @@ async function validateReadmeTemplate() {
         const endpoint = cols[3] || '';
         if (/^DESARROLLO/i.test(ambiente)) {
           has_des = true;
-          if (/^NA$/i.test(endpoint)) errors.push(`Tabla Endpoint BUS no puede contener valores NA. Ambiente: ${ambiente}`);
-          if (!/^https:\/\/adbog162e\.bancodeoccidente\.net/i.test(endpoint)) errors.push(`Endpoint BUS en DESARROLLO debe comenzar con https://adbog162e.bancodeoccidente.net. Encontrado: ${endpoint}`);
+          if (/^NA$/i.test(endpoint)) {
+            core.error(`❌ Tabla Endpoint BUS no puede contener valores NA. Ambiente: ${ambiente}`);
+            errors.push(`Tabla Endpoint BUS no puede contener valores NA. Ambiente: ${ambiente}`);
+          }
+          if (!/^https:\/\/adbog162e\.bancodeoccidente\.net/i.test(endpoint)) {
+            core.error(`❌ Endpoint BUS en DESARROLLO debe comenzar con https://adbog162e.bancodeoccidente.net. Encontrado: ${endpoint}`);
+            errors.push(`Endpoint BUS en DESARROLLO debe comenzar con https://adbog162e.bancodeoccidente.net. Encontrado: ${endpoint}`);
+          }
         } else if (/^CALIDAD/i.test(ambiente)) {
           has_cal = true;
-          if (/^NA$/i.test(endpoint)) errors.push(`Tabla Endpoint BUS no puede contener valores NA. Ambiente: ${ambiente}`);
-          if (!/^https:\/\/a[dt]bog16[34][de]\.bancodeoccidente\.net/i.test(endpoint)) errors.push(`Endpoint BUS en CALIDAD debe comenzar con nodos esperados. Encontrado: ${endpoint}`);
+          if (/^NA$/i.test(endpoint)) {
+            core.error(`❌ Tabla Endpoint BUS no puede contener valores NA. Ambiente: ${ambiente}`);
+            errors.push(`Tabla Endpoint BUS no puede contener valores NA. Ambiente: ${ambiente}`);
+          }
+          if (!/^https:\/\/a[dt]bog16[34][de]\.bancodeoccidente\.net/i.test(endpoint)) {
+            core.error(`❌ Endpoint BUS en CALIDAD debe comenzar con nodos esperados. Encontrado: ${endpoint}`);
+            errors.push(`Endpoint BUS en CALIDAD debe comenzar con nodos esperados. Encontrado: ${endpoint}`);
+          }
         } else if (/^PRODUCCION/i.test(ambiente)) {
           has_prd = true;
-          if (/^NA$/i.test(endpoint)) errors.push(`Tabla Endpoint BUS no puede contener valores NA. Ambiente: ${ambiente}`);
-          if (!(/^https:\/\/adbog16[56][ab]\.bancodeoccidente\.net/i.test(endpoint) || /^https?:\/\/boc060ap\.prd\.app\.bancodeoccidente\.net:/.test(endpoint))) errors.push(`Endpoint BUS en PRODUCCION debe comenzar con nodos esperados. Encontrado: ${endpoint}`);
+          if (/^NA$/i.test(endpoint)) {
+            core.error(`❌ Tabla Endpoint BUS no puede contener valores NA. Ambiente: ${ambiente}`);
+            errors.push(`Tabla Endpoint BUS no puede contener valores NA. Ambiente: ${ambiente}`);
+          }
+          if (!(/^https:\/\/adbog16[56][ab]\.bancodeoccidente\.net/i.test(endpoint) || /^https?:\/\/boc060ap\.prd\.app\.bancodeoccidente\.net:/.test(endpoint))) {
+            core.error(`❌ Endpoint BUS en PRODUCCION debe comenzar con nodos esperados. Encontrado: ${endpoint}`);
+            errors.push(`Endpoint BUS en PRODUCCION debe comenzar con nodos esperados. Encontrado: ${endpoint}`);
+          }
         }
       }
-      if (!has_des) errors.push('Tabla Endpoint BUS debe tener al menos una fila para DESARROLLO');
-      if (!has_cal) errors.push('Tabla Endpoint BUS debe tener al menos una fila para CALIDAD');
-      if (!has_prd) errors.push('Tabla Endpoint BUS debe tener al menos una fila para PRODUCCION');
-      if (has_des && has_cal && has_prd) notices.push('Tabla Endpoint BUS contiene los 3 ambientes requeridos');
+      if (!has_des) {
+        core.error('❌ Tabla Endpoint BUS debe tener al menos una fila para DESARROLLO');
+        errors.push('Tabla Endpoint BUS debe tener al menos una fila para DESARROLLO');
+      }
+      if (!has_cal) {
+        core.error('❌ Tabla Endpoint BUS debe tener al menos una fila para CALIDAD');
+        errors.push('Tabla Endpoint BUS debe tener al menos una fila para CALIDAD');
+      }
+      if (!has_prd) {
+        core.error('❌ Tabla Endpoint BUS debe tener al menos una fila para PRODUCCION');
+        errors.push('Tabla Endpoint BUS debe tener al menos una fila para PRODUCCION');
+      }
+      if (has_des && has_cal && has_prd) {
+        core.info('::notice title=Validación de README.md::✅ Tabla Endpoint BUS contiene los 3 ambientes requeridos');
+        notices.push('Tabla Endpoint BUS contiene los 3 ambientes requeridos');
+      }
     }
   }
 
-  // 5) CANALES - APLICACIONES
+  // ===== 7. CANALES - APLICACIONES =====
+  core.info('✔️ Validando sección \'## CANALES - APLICACIONES\'');
+  
   const canalesSection = getSection('^##\\s*CANALES - APLICACIONES');
   if (!canalesSection) {
+    core.error('❌ Falta sección \'CANALES - APLICACIONES\'');
     errors.push("Falta sección 'CANALES - APLICACIONES'");
   } else {
+    core.info('::notice title=Validación de README.md::Sección \'CANALES - APLICACIONES\' válida');
+    
     const canalesRows = canalesSection.split(/\r?\n/);
     const consumidorRow = canalesRows.find(l => /^\|\*\*Consumidor\*\*/i.test(l));
     if (!consumidorRow) {
+      core.error('❌ No se encontró la fila \'**Consumidor**\' en la sección \'CANALES - APLICACIONES\'.');
       errors.push("No se encontró la fila '**Consumidor**' en la sección 'CANALES - APLICACIONES'.");
     } else {
       const consumidorValues = consumidorRow.replace(/^\|\*\*Consumidor\*\*\|/, '').replace(/\|$/,'').trim();
-      if (!consumidorValues) errors.push("La fila 'Consumidor' en 'CANALES - APLICACIONES' está vacía. Debe tener al menos un valor o 'NA' si no aplica."); else notices.push(`La fila 'Consumidor' contiene valores: ${consumidorValues}`);
+      if (!consumidorValues) {
+        core.error('❌ La fila \'Consumidor\' en \'CANALES - APLICACIONES\' está vacía. Debe tener al menos un valor o \'NA\' si no aplica.');
+        errors.push("La fila 'Consumidor' en 'CANALES - APLICACIONES' está vacía. Debe tener al menos un valor o 'NA' si no aplica.");
+      } else {
+        core.info(`::notice title=Validación de README.md::✅ La fila 'Consumidor' contiene valores: ${consumidorValues}`);
+        notices.push(`La fila 'Consumidor' contiene valores: ${consumidorValues}`);
+      }
     }
     const backendsRow = canalesRows.find(l => /^\|\*\*Backends\*\*/i.test(l));
     if (!backendsRow) {
+      core.error('❌ No se encontró la fila \'**Backends**\' en la sección \'CANALES - APLICACIONES\'.');
       errors.push("No se encontró la fila '**Backends**' en la sección 'CANALES - APLICACIONES'.");
     } else {
       const backendsValues = backendsRow.replace(/^\|\*\*Backends\*\*\|/, '').replace(/\|$/,'').trim();
-      if (!backendsValues) errors.push("La fila 'Backends' en 'CANALES - APLICACIONES' está vacía. Debe tener al menos un valor o 'NA' si no aplica."); else notices.push(`La fila 'Backends' contiene valores: ${backendsValues}`);
+      if (!backendsValues) {
+        core.error('❌ La fila \'Backends\' en \'CANALES - APLICACIONES\' está vacía. Debe tener al menos un valor o \'NA\' si no aplica.');
+        errors.push("La fila 'Backends' en 'CANALES - APLICACIONES' está vacía. Debe tener al menos un valor o 'NA' si no aplica.");
+      } else {
+        core.info(`::notice title=Validación de README.md::✅ La fila 'Backends' contiene valores: ${backendsValues}`);
+        notices.push(`La fila 'Backends' contiene valores: ${backendsValues}`);
+      }
     }
   }
 
-  // 6) DEPENDENCIAS
+  // ===== 8. DEPENDENCIAS =====
+  core.info('✔️ Validando sección \'## DEPENDENCIAS\'');
+  
   const dependencias = getSection('^##\\s*DEPENDENCIAS');
   if (!dependencias) {
+    core.error('❌ Falta sección \'DEPENDENCIAS\'');
     errors.push("Falta sección 'DEPENDENCIAS'");
   } else {
+    core.info('::notice title=Validación de README.md::Sección \'DEPENDENCIAS\' válida');
     // Extract services table between |Servicios| and |XSL|
     const serviciosMatch = dependencias.match(/\|\s*Servicios\s*\|[\s\S]*?(?=\|\s*XSL\s*\||$)/i);
     if (!serviciosMatch) {
@@ -532,14 +675,20 @@ async function validateReadmeTemplate() {
     }
   }
 
-  // 7) DOCUMENTACION
+  // ===== 9. DOCUMENTACION =====
+  core.info('✔️ Validando sección \'## DOCUMENTACION\'');
+  
   const docSection = getSection('^##\\s*DOCUMENTACION');
   if (!docSection) {
+    core.error('❌ Falta sección \'DOCUMENTACION\'');
     errors.push("Falta sección 'DOCUMENTACION'");
   } else {
+    core.info('::notice title=Validación de README.md::Sección \'DOCUMENTACION\' válida');
     notices.push("Sección 'DOCUMENTACION' válida");
     const docContent = docSection.replace(/^##.*\n?/, ' ').replace(/\r?\n/g, ' ');
-    // Documento de diseño detallado
+    
+    // ===== 9.1. Documento de diseño detallado =====
+    core.info('  ✔️ Validando campo \'Documento de diseño detallado\'');
     if (/\*\*Documento de diseño detallado\*\*/i.test(docContent) || /Documento de diseño detallado/i.test(docContent)) {
       const disenoFragment = (docContent.match(/\*\*Documento de diseño detallado(?:\*\*)?:.*?(?=\*\*[A-Z]|$)/i) || [''])[0];
       if (/https:\/\/bancoccidente\.sharepoint\.com\/:f:\/r\/sites\/BibliotecaAplicaciones\//i.test(disenoFragment)) notices.push("Enlace SharePoint válido para 'Documento de diseño detallado'"); else errors.push("El campo 'Documento de diseño detallado' debe tener un enlace que comience con 'https://bancoccidente.sharepoint.com/:f:/r/sites/BibliotecaAplicaciones/'");
@@ -571,16 +720,22 @@ async function validateReadmeTemplate() {
     }
   }
 
-  // 8) SQL
+  // ===== 10. SQL =====
+  core.info('✔️ Validando sección \'## SQL\'');
+  
   const sqlSection = getSection('^##\\s*SQL');
   if (!sqlSection) {
+    core.error('❌ Falta sección \'SQL\'');
     errors.push("Falta sección 'SQL'");
   } else {
     const sqlBody = sqlSection.replace(/^##.*\n?/, '');
     if (!/\S/.test(sqlBody)) {
+      core.error('❌ La sección \'SQL\' está vacía. Debe contener queries de auditoría y monitoreo.');
       errors.push("La sección 'SQL' está vacía. Debe contener queries de auditoría y monitoreo.");
     } else {
+      core.info('::notice title=Validación de README.md::✅ La sección \'SQL\' contiene contenido');
       notices.push("La sección 'SQL' contiene contenido");
+      
       // find lines with where ... = '...' or in(...)
       const lines = sqlBody.split(/\r?\n/);
       let foundQueries = [];
@@ -588,20 +743,26 @@ async function validateReadmeTemplate() {
         if (/where.*=\s*'[^']*'/i.test(ln) || /where.*in\s*\(/i.test(ln)) foundQueries.push(ln.trim());
       }
       if (foundQueries.length === 0) {
-        core.warning('No se encontraron queries SQL con códigos de operación en la sección SQL');
+        core.warning('⚠️  No se encontraron queries SQL con códigos de operación en la sección SQL');
       } else {
         for (const q of foundQueries) {
           // = 'value'
           if (/=\s*'([^']+)'/.test(q)) {
             const val = q.match(/=\s*'([^']+)'/)[1];
-            if (!/^\d+$/.test(val)) errors.push(`Código de operación contiene caracteres no numéricos. Solo se permiten números: ${q}`);
+            if (!/^\d+$/.test(val)) {
+              core.error(`❌ Código de operación contiene caracteres no numéricos. Solo se permiten números: ${q}`);
+              errors.push(`Código de operación contiene caracteres no numéricos. Solo se permiten números: ${q}`);
+            }
           }
           // in('a','b')
           const inMatch = q.match(/in\s*\(([^)]+)\)/i);
           if (inMatch) {
             const vals = inMatch[1].split(',').map(v => v.replace(/['" ]/g,'').trim()).filter(Boolean);
             for (const v of vals) {
-              if (/\D/.test(v)) errors.push(`Código de operación contiene caracteres no numéricos en lista: '${v}' en línea: ${q}`);
+              if (/\D/.test(v)) {
+                core.error(`❌ Código de operación contiene caracteres no numéricos en lista: '${v}' en línea: ${q}`);
+                errors.push(`Código de operación contiene caracteres no numéricos en lista: '${v}' en línea: ${q}`);
+              }
             }
           }
         }
@@ -609,12 +770,35 @@ async function validateReadmeTemplate() {
     }
   }
 
-  // Log notices and errors
-  notices.forEach(n => core.info(`Notice: ${n}`));
-  if (errors.length > 0) {
-    errors.forEach(e => core.error(`Error: ${e}`));
-    throw new Error('README.md no cumple con todos los requisitos de la plantilla.');
+  // ===== RESUMEN DE VALIDACIÓN =====
+  core.info('');
+  core.info('📊 ============================================');
+  core.info('   RESUMEN DE VALIDACIÓN README.md');
+  core.info('============================================');
+  core.info('');
+  
+  // Log all notices (successes)
+  if (notices.length > 0) {
+    core.info('✅ VALIDACIONES EXITOSAS:');
+    notices.forEach(n => core.info(`   ✓ ${n}`));
+    core.info('');
   }
+  
+  // Log all errors
+  if (errors.length > 0) {
+    core.info(`❌ SE ENCONTRARON ${errors.length} ERROR(ES):`);
+    errors.forEach((e, index) => {
+      core.error(`   ${index + 1}. ${e}`);
+    });
+    core.info('');
+    core.error(`README.md no cumple con todos los requisitos de la plantilla. Total de errores: ${errors.length}`);
+    throw new Error(`README.md no cumple con todos los requisitos de la plantilla. Se encontraron ${errors.length} errores.`);
+  }
+  
+  core.info('🎉 ============================================');
+  core.info('   README.md CUMPLE CON TODOS LOS REQUISITOS');
+  core.info('============================================');
+  core.info('');
 
   return true;
 }
