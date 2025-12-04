@@ -78,7 +78,7 @@ jobs:
         uses: bocc-principal/ESB_ACE12_Validate_Readme_Action@main
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          config-repo-token: ${{ secrets.ESB_ACE12_ORG_REPO_TOKEN }}
+          config-repo-token: ${{ secrets.ESB_ACE12_ORG_REPO_TOKEN }}  # ← REQUERIDO para validar grupos
 
   # Job consolidado 2: Revisiones del repositorio
   revisiones_repositorio:
@@ -105,9 +105,11 @@ jobs:
 
 ### Configuración de Secrets
 
-La acción requiere el siguiente secret configurado en tu repositorio u organización:
+⚠️ **IMPORTANTE**: La acción requiere el siguiente secret configurado en tu repositorio u organización para validar grupos de ejecución:
 
-1. **ESB_ACE12_ORG_REPO_TOKEN**: Personal Access Token con permisos de lectura en el repositorio `bocc-principal/ESB_ACE12_General_Configs`
+**ESB_ACE12_ORG_REPO_TOKEN**: Personal Access Token con permisos de lectura en el repositorio `bocc-principal/ESB_ACE12_General_Configs`
+
+**NOTA CRÍTICA**: Este secret DEBE pasarse explícitamente como input en el workflow que llama la acción. Los secrets del repositorio NO se heredan automáticamente por las GitHub Actions.
 
 #### Crear el Personal Access Token:
 

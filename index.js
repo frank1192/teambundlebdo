@@ -19,7 +19,7 @@ async function run() {
   try {
     // Get inputs
     const token = core.getInput('github-token') || process.env.GITHUB_TOKEN;
-    const configRepoToken = core.getInput('config-repo-token') || process.env.ESB_ACE12_ORG_REPO_TOKEN;
+    const configRepoToken = core.getInput('config-repo-token');
     const skipReadmeValidation = core.getInput('skip-readme-validation') === 'true';
     
     const workspaceDir = getWorkspaceDir();
@@ -30,7 +30,7 @@ async function run() {
     
     // Log token status (without exposing values)
     core.info(`GitHub token: ${token ? '✅ Provided' : '❌ Not provided'}`);
-    core.info(`Config repo token: ${configRepoToken ? '✅ Provided' : '❌ Not provided'}`);
+    core.info(`Config repo token: ${configRepoToken ? '✅ Provided' : '❌ Not provided (validación de grupos se omitirá)'}`);
     core.info(`Skip README validation: ${skipReadmeValidation}`);
     core.info('');
     
@@ -870,11 +870,6 @@ async function validateNoBDFolders(workspaceDir = process.cwd()) {
 async function validateExecutionGroups(token, workspaceDir = process.cwd()) {
   try {
     core.info('🔍 Iniciando validación de grupos de ejecución');
-    
-    if (!token) {
-      core.warning('⚠️  Token de configuración no provisto, saltando validación de grupos de ejecución');
-      return true;
-    }
     
     const readmePath = path.join(workspaceDir, 'README.md');
     const content = fs.readFileSync(readmePath, 'utf8');
