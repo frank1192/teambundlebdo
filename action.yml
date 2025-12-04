@@ -35,6 +35,6 @@ outputs:
 
 runs:
   using: 'node20'
-  # Use dist/index.js for production (compiled with ncc)
-  # For development, you can temporarily change to 'index.js'
+  # Production: Always uses dist/index.js (compiled with ncc)
+  # This ensures all dependencies are bundled
   main: 'dist/index.js'
