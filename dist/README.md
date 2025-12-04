@@ -101,7 +101,6 @@ jobs:
 | `github-token` | Token de GitHub para acceso a la API | No | `${{ github.token }}` |
 | `config-repo-token` | Personal Access Token con acceso al repositorio `ESB_ACE12_General_Configs` | No | - |
 | `skip-readme-validation` | Omitir validación de README (útil para repositorios que no son servicios) | No | `false` |
-| `valid-reviewers` | Lista separada por comas de revisores autorizados | No | `DRamirezM,cdgomez,acardenasm,CAARIZA` |
 
 ### Configuración de Secrets
 
@@ -533,7 +532,7 @@ UNLICENSED - Uso interno Banco de Occidente
 
 ### Guías Relacionadas
 
-- **[CHECKLIST.md](./CHECKLIST.md)**: Documentación técnica completa de las validaciones del workflow
+- **[CHECKLIST.md](../CHECKLIST.md)**: Documentación técnica completa de las validaciones del workflow
   - Descripción detallada de cada validación
   - Reglas de negocio implementadas
   - Ejemplos de casos válidos e inválidos
@@ -544,10 +543,10 @@ UNLICENSED - Uso interno Banco de Occidente
 
 Este repositorio contiene la siguiente documentación organizada:
 
-1. **README.md** (este archivo): Guía de uso de la acción para usuarios
+1. **README.md** (raíz): Guía de uso de la acción para usuarios
 2. **CHECKLIST.md**: Documentación técnica detallada de validaciones
 3. **action.yml**: Definición de la acción de GitHub
-4. **dist/README.md**: Documentación del bundle compilado
+4. **dist/README.md** (este archivo): Documentación del bundle compilado
 
 ### Ejemplo de README de Servicio
 
