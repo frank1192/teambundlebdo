@@ -896,17 +896,27 @@ async function validateExecutionGroups(token, workspaceDir = process.cwd()) {
     
     core.info(`📝 Servicio detectado: ESB_ACE12_${serviceName}`);
     
-    // Extract groups from README
-    const deploymentMatch = content.match(/desplegar en los grupos de ejecución:\s*\n?([^\n#]+)/i);
+    // Extract groups from README - must search within "Procedimiento de despliegue" section
+    const deploymentSectionMatch = content.match(/^## Procedimiento de despliegue\s*\n([\s\S]*?)(?=\n## |$)/im);
+    if (!deploymentSectionMatch) {
+      throw new Error('No se encontró la sección "## Procedimiento de despliegue" en el README');
+    }
+    
+    const deploymentSection = deploymentSectionMatch[1];
+    const deploymentMatch = deploymentSection.match(/desplegar en los grupos de ejecución:\s*\n?([^\n#]+)/i);
+    
     if (!deploymentMatch) {
-      core.warning('No se encontró la frase "desplegar en los grupos de ejecución:" en el README');
-      return true;
+      throw new Error(`No se encontró la frase "desplegar en los grupos de ejecución:" en el procedimiento de despliegue para el servicio '${serviceName}'`);
     }
     
     const readmeGroups = deploymentMatch[1]
       .split(/[\s,]+/)
       .filter(g => g.trim())
       .map(g => g.toLowerCase());
+    
+    if (readmeGroups.length === 0) {
+      throw new Error(`No se pudieron extraer los grupos de ejecución para el servicio '${serviceName}'. Verifica que estén después de 'desplegar en los grupos de ejecución:' en la misma línea o en la siguiente. Línea encontrada: ${deploymentMatch[0]}`);
+    }
     
     core.info(`📚 Grupos en README (${readmeGroups.length}): ${readmeGroups.join(', ')}`);
     
