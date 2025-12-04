@@ -506,6 +506,13 @@ La acción consolida las siguientes validaciones:
 
 ## 📝 Changelog
 
+### v1.1.1 (2024-12) - Execution Groups Validation Fix
+- 🔧 **FIXED**: Corrected `action.yml` duplicate `main:` entry causing source file to run instead of compiled bundle
+- 🔧 **FIXED**: Improved error handling for execution groups validation to report failures correctly
+- ✨ Separated try-catch blocks for independent validations (README, template, execution groups)
+- ✨ Enhanced error messages to clearly identify which specific validation failed
+- 📊 Execution groups validation now works correctly with `ESB_ACE12_ORG_REPO_TOKEN`
+
 ### v1.1.0 (2024-12) - Comprehensive Validation Feedback Restoration
 - 🔧 **FIXED**: Restored comprehensive validation feedback lost in Node.js migration
 - ✨ Added detailed progress messages for each validation section
