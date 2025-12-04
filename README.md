@@ -506,6 +506,15 @@ La acción consolida las siguientes validaciones:
 
 ## 📝 Changelog
 
+### v1.1.0 (2024-12) - Comprehensive Validation Feedback Restoration
+- 🔧 **FIXED**: Restored comprehensive validation feedback lost in Node.js migration
+- ✨ Added detailed progress messages for each validation section
+- ✨ Show ALL errors at once instead of stopping at first error
+- ✨ Comprehensive summary with error count and list
+- ✨ Verbose logging matching bash version (✅/❌ indicators)
+- 🎯 GitHub Actions annotations (::notice, ::error) used consistently
+- 📊 Clear validation summary showing successful checks and all errors
+
 ### v1.0.0 (2024-11)
 - ✨ Migración a Node.js 20.x (preparado para 24.11.x)
 - ✨ Acción reutilizable con @actions/core y @actions/github
