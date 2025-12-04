@@ -1,6 +1,6 @@
 {
   "name": "esb-ace12-checklist-action",
-  "version": "1.0.0",
+  "version": "1.1.1",
   "description": "Reusable GitHub Action for validating ESB/ACE12 service repositories",
   "main": "index.js",
   "scripts": {

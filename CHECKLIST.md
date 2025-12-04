@@ -2415,6 +2415,26 @@ Resultado esperado:
 
 ## Historial de Cambios
 
+### Corrección de validación de grupos de ejecución en acción Node.js (Diciembre 2024)
+**Problema**: La validación de grupos de ejecución no funcionaba correctamente en la versión migrada a Node.js de la acción, específicamente cuando se usaba el token `ESB_ACE12_ORG_REPO_TOKEN`.
+
+**Causa Raíz**: 
+1. El archivo `action.yml` tenía dos entradas `main:` duplicadas. YAML solo reconoce la última, por lo que estaba ejecutando `index.js` (código fuente) en lugar de `dist/index.js` (código compilado con dependencias)
+2. El manejo de errores en la función principal capturaba todos los errores de validación en un bloque catch general, marcando incorrectamente `readmeTemplate` como fallido cuando en realidad era `executionGroups` la validación que había fallado
+
+**Solución implementada**:
+- Corregir `action.yml` para usar únicamente `dist/index.js` como punto de entrada
+- Separar bloques try-catch para cada validación independiente (README existencia, plantilla README, y grupos de ejecución)
+- Mejorar mensajes de error para identificar claramente qué validación específica falló
+- Asegurar que el código compilado con ncc esté actualizado en `dist/index.js`
+
+**Impacto**: La validación de grupos de ejecución ahora funciona correctamente, comparando los grupos declarados en el README con los configurados en el repositorio central `ESB_ACE12_General_Configs`. Los errores se reportan correctamente identificando la validación que falló.
+
+**Archivos modificados**:
+- `action.yml`: Línea 36-40 (eliminada entrada duplicada `main:`)
+- `index.js`: Líneas 66-103 (separación de bloques try-catch)
+- `dist/index.js`: Recompilado con los cambios
+
 ### Corrección de validación DataPower con NA (Fecha actual)
 **Problema**: El validador reportaba error "No se encontraron filas de datos en tabla DataPower" aunque el README contenía explícitamente 'NA', 'N/A' o 'No Aplica' como contenido válido.
 
