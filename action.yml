@@ -35,7 +35,6 @@ outputs:
 
 runs:
   using: 'node20'
+  # Use dist/index.js for production (compiled with ncc)
+  # For development, you can temporarily change to 'index.js'
   main: 'dist/index.js'
-  # Use source during development so the action runs the updated logic in index.js
-  # For production builds consider bundling with ncc and point to 'dist/index.js'
-  main: 'index.js'
