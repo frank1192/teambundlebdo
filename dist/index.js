@@ -150,8 +150,15 @@ async function run() {
     core.info(`  - Nombre de rama: ${results.branchName !== false ? '✅' : '❌'}`);
     if (!skipReadmeValidation) {
       core.info(`  - README existencia: ${results.readmeExistence !== false ? '✅' : '❌'}`);
-      core.info(`  - README plantilla: ${results.readmeTemplate !== false ? '✅' : '❌'}`);
-      core.info(`  - Grupos de ejecución: ${results.executionGroups !== false ? '✅' : '❌'}`);
+      
+      // README template and groups only show if README exists
+      if (results.readmeExistence === false) {
+        core.info(`  - README plantilla: ⏭️  (omitida - README no existe)`);
+        core.info(`  - Grupos de ejecución: ⏭️  (omitida - README no existe)`);
+      } else {
+        core.info(`  - README plantilla: ${results.readmeTemplate !== false ? '✅' : '❌'}`);
+        core.info(`  - Grupos de ejecución: ${results.executionGroups !== false ? '✅' : '❌'}`);
+      }
     }
     core.info(`  - Carpetas BD: ${results.bdFolders !== false ? '✅' : '❌'}`);
     core.info(`  - Revisores y rutas: ${results.reviewersAndRoutes !== false ? '✅' : '❌'}`);
