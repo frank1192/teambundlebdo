@@ -405,8 +405,14 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
 
     const isOnlyNA = (txt) => {
       if (!txt) return false;
-      const clean = txt.trim();
-      return /^\s*(N\s*\/?\s*A|No\s+Aplica)\s*$/i.test(clean);
+      // Remove HTML tags, markdown elements, and whitespace to check if content is only NA/No Aplica
+      const clean = txt
+        .replace(/<[^>]+>/g, '') // Remove HTML tags like <br>
+        .replace(/\*\*/g, '')     // Remove bold markdown
+        .replace(/\r?\n/g, ' ')   // Replace newlines with space
+        .replace(/\s+/g, ' ')     // Normalize whitespace
+        .trim();
+      return /^(N\s*\/?\s*A|No\s+Aplica)$/i.test(clean);
     };
 
     function extractTableRows(sectionText) {
@@ -434,9 +440,9 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
       let has_des = false, has_cal = false, has_prd = false;
       for (const row of rows) {
         const cols = row.replace(/^\||\|$/g, '').split('|').map(s => s.trim());
-        const ambiente = cols[1] || '';
-        const datapower = cols[4] || '';
-        const endpoint = cols[5] || '';
+        const ambiente = cols[0] || '';  // AMBIENTE es la primera columna (índice 0)
+        const datapower = cols[3] || ''; // DATAPOWER es la cuarta columna (índice 3)
+        const endpoint = cols[4] || '';  // ENDPOINT es la quinta columna (índice 4)
         const rowContent = cols.join(' ');
         if (!/^\s*(DESARROLLO|CALIDAD|PRODUCCION)/i.test(ambiente)) continue;
         if (!/^(DESARROLLO|CALIDAD|PRODUCCION)/i.test(ambiente)) continue;
@@ -567,8 +573,8 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
       let has_des = false, has_cal = false, has_prd = false;
       for (const row of dataRows) {
         const cols = row.replace(/^\||\|$/g, '').split('|').map(s => s.trim());
-        const ambiente = cols[1] || '';
-        const endpoint = cols[3] || '';
+        const ambiente = cols[0] || '';  // AMBIENTE es la primera columna (índice 0)
+        const endpoint = cols[2] || '';  // ENDPOINT es la tercera columna (índice 2)
         if (/^DESARROLLO/i.test(ambiente)) {
           has_des = true;
           if (/^NA$/i.test(endpoint)) {
@@ -716,10 +722,27 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
       errors.push("No se encontró la tabla 'XSL' en DEPENDENCIAS.");
     } else {
       const xslTable = xslMatch[0];
-      const xslContent = xslTable.split(/\r?\n/).filter(l => l.trim() && !/^\|---/.test(l) && !/^\|\s*XSL\s*\|/i.test(l)).map(l => l.replace(/^\||\|$/g,'').trim()).join(' ');
-      if (!xslContent) errors.push("La tabla 'XSL' en DEPENDENCIAS está vacía. Si no hay XSLs, debe colocarse explícitamente 'NA'.");
-      else {
-        if (/\bNA\b/i.test(xslContent)) notices.push("Tabla XSL contiene 'NA' (sin XSLs a consumir)."); else notices.push(`Tabla XSL contiene XSLs: ${xslContent}`);
+      // Extract data rows (skip header and separator)
+      const xslLines = xslTable.split(/\r?\n/);
+      let xslDataRows = [];
+      let foundSeparator = false;
+      for (const line of xslLines) {
+        if (/^\|---/.test(line)) { foundSeparator = true; continue; }
+        if (foundSeparator && /^\|/.test(line)) {
+          const cellContent = line.replace(/^\||\|$/g, '').trim();
+          if (cellContent) xslDataRows.push(cellContent);
+        }
+      }
+      
+      if (xslDataRows.length === 0) {
+        errors.push("La tabla 'XSL' en DEPENDENCIAS está vacía. Si no hay XSLs, debe colocarse explícitamente 'NA'.");
+      } else {
+        const xslContent = xslDataRows.join(' ');
+        if (/\bNA\b/i.test(xslContent)) {
+          notices.push("Tabla XSL contiene 'NA' (sin XSLs a consumir).");
+        } else {
+          notices.push(`Tabla XSL contiene ${xslDataRows.length} XSLs`);
+        }
       }
     }
   }
@@ -759,7 +782,7 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
       errors.push("Falta campo '**Evidencias (Unitarias/Auditoria/Monitoreo):**' en la sección DOCUMENTACION");
     }
     // WSDL
-    if (/\*\*WSDL\*\*/i.test(docContent) || /\*\*WSDL\*\*/i.test(docContent)) {
+    if (/\*\*WSDL\*\*/i.test(docContent) || /WSDL:/i.test(docContent)) {
       const wsdlFragment = (docContent.match(/\*\*WSDL(?:\*\*)?:.*?(?=\*\*[A-Z]|$)/i) || [''])[0];
       const repo_name = (content.match(/^#\s*ESB_(.+)$/m) || ['',''])[1].replace(/\.$/, '').trim();
       const gitPattern = new RegExp(`git\\\\${repo_name}\\\\Broker\\\\WSDL\\\\wsdl\\\\`, 'i');
