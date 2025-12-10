@@ -246,11 +246,16 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
     const start = content.search(re);
     if (start === -1) return null;
     const tail = content.slice(start);
-    const m = tail.match(/\n(^###\s+|^##\s+)/m);
+    // Find first newline to skip the header line itself (like awk's 'next')
+    const firstNewline = tail.indexOf('\n');
+    if (firstNewline === -1) return '';
+    const contentAfterHeader = tail.slice(firstNewline + 1);
+    // Find next subsection or section
+    const m = contentAfterHeader.match(/^(###\s+|##\s+)/m);
     if (m && m.index !== undefined) {
-      return tail.slice(0, m.index).trim();
+      return contentAfterHeader.slice(0, m.index).trim();
     }
-    return tail.trim();
+    return contentAfterHeader.trim();
   }
 
   // ===== 1. VALIDACIÓN DE TÍTULO PRINCIPAL =====
@@ -764,14 +769,26 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
   // ===== 9. DOCUMENTACION =====
   core.info('✔️ Validando sección \'## DOCUMENTACION\'');
   
-  const docSection = getSection('^##\\s*DOCUMENTACION');
-  if (!docSection) {
+  // Extract DOCUMENTACION section line by line (more reliable)
+  const docLines = content.split('\n');
+  let docSection = '';
+  let capturingDoc = false;
+  for (const line of docLines) {
+    if (/^## DOCUMENTACION/i.test(line)) {
+      capturingDoc = true;
+      continue;
+    }
+    if (capturingDoc && /^## /.test(line)) break;
+    if (capturingDoc) docSection += line + '\n';
+  }
+  
+  if (!docSection.trim()) {
     core.error('❌ Falta sección \'DOCUMENTACION\'');
     errors.push("Falta sección 'DOCUMENTACION'");
   } else {
     core.info('::notice title=Validación de README.md::Sección \'DOCUMENTACION\' válida');
     notices.push("Sección 'DOCUMENTACION' válida");
-    const docContent = docSection.replace(/^##.*\n?/, ' ').replace(/\r?\n/g, ' ');
+    const docContent = docSection.replace(/\r?\n/g, ' ');
     
     // ===== 9.1. Documento de diseño detallado =====
     core.info('  ✔️ Validando campo \'Documento de diseño detallado\'');
@@ -802,7 +819,9 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
       const nextFieldMatch = docContent.substring(wsdlStart + 10).search(/\*\*[A-Z]/);
       const wsdlEnd = nextFieldMatch > 0 ? wsdlStart + 10 + nextFieldMatch : docContent.length;
       const wsdlFragment = docContent.substring(wsdlStart, wsdlEnd);
-      const repo_name = (content.match(/^#\s*ESB_(.+)$/m) || ['',''])[1].replace(/\.$/, '').trim();
+      // Extract FULL repo name including ESB_ (like checklist.yml does)
+      const titleMatch = content.match(/^#\s*(ESB_.+)$/m);
+      const repo_name = titleMatch ? titleMatch[1].replace(/\.$/, '').trim() : '';
       const gitPattern = new RegExp(`git\\\\${repo_name}\\\\Broker\\\\WSDL\\\\wsdl\\\\`, 'i');
       if (gitPattern.test(wsdlFragment) || /^\s*N\/?A\s*$/i.test(wsdlFragment)) notices.push(`Ruta WSDL válida para repositorio '${repo_name}'`); else errors.push("El campo 'WSDL' debe comenzar con 'git\\${repo_name}\\Broker\\WSDL\\wsdl\\' o contener solo 'N/A'.");
     } else {
@@ -968,9 +987,6 @@ async function validateExecutionGroups(token, workspaceDir = process.cwd()) {
     }
     
     if (!deploymentSection.trim()) {
-      throw new Error('No se encontró la sección "## Procedimiento de despliegue" en el README');
-    }
-    if (!deploymentSectionMatch) {
       throw new Error('No se encontró la sección "## Procedimiento de despliegue" en el README');
     }
     
