@@ -710,8 +710,22 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
         if (!faltantes.length && !extras.length) notices.push('Los servicios en README y .project coinciden correctamente.');
       }
     }
-    // XSL table
-    const xslMatch = dependencias.match(/\|\s*XSL\s*\|[\s\S]*?(?=^\s*\r?\n|$)/im);
+    // XSL table - extract like awk: from |XSL| until next section or empty
+    const depLines = dependencias.split('\n');
+    let xslLines = [];
+    let captureXSL = false;
+    for (const line of depLines) {
+      if (/^\|XSL\|/i.test(line)) {
+        captureXSL = true;
+        xslLines.push(line);
+        continue;
+      }
+      if (captureXSL) {
+        if (/^## /.test(line)) break; // Next section
+        xslLines.push(line);
+      }
+    }
+    const xslMatch = xslLines.length > 0 ? [xslLines.join('\n')] : null;
     if (!xslMatch) {
       errors.push("No se encontró la tabla 'XSL' en DEPENDENCIAS.");
     } else {
@@ -777,7 +791,11 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
     }
     // WSDL
     if (/\*\*WSDL\*\*/i.test(docContent) || /WSDL:/i.test(docContent)) {
-      const wsdlFragment = (docContent.match(/\*\*WSDL(?:\*\*)?:.*?(?=\*\*[A-Z]|$)/i) || [''])[0];
+      // Capture WSDL content - get everything after WSDL: including line breaks
+      const wsdlStart = docContent.search(/\*\*WSDL(?:\*\*)?:/i);
+      const nextFieldMatch = docContent.substring(wsdlStart + 10).search(/\*\*[A-Z]/);
+      const wsdlEnd = nextFieldMatch > 0 ? wsdlStart + 10 + nextFieldMatch : docContent.length;
+      const wsdlFragment = docContent.substring(wsdlStart, wsdlEnd);
       const repo_name = (content.match(/^#\s*ESB_(.+)$/m) || ['',''])[1].replace(/\.$/, '').trim();
       const gitPattern = new RegExp(`git\\\\${repo_name}\\\\Broker\\\\WSDL\\\\wsdl\\\\`, 'i');
       if (gitPattern.test(wsdlFragment) || /^\s*N\/?A\s*$/i.test(wsdlFragment)) notices.push(`Ruta WSDL válida para repositorio '${repo_name}'`); else errors.push("El campo 'WSDL' debe comenzar con 'git\\${repo_name}\\Broker\\WSDL\\wsdl\\' o contener solo 'N/A'.");
@@ -926,32 +944,52 @@ async function validateExecutionGroups(token, workspaceDir = process.cwd()) {
     core.info(`📝 Servicio detectado: ESB_ACE12_${serviceName}`);
     
     // Extract groups from README - must search within "Procedimiento de despliegue" section
-    const deploymentSectionMatch = content.match(/^## Procedimiento de despliegue\s*$([\s\S]*?)(?=^## |\Z)/im);
+    // Pattern mimics: awk '/^## Procedimiento de despliegue/{flag=1;next}/^## /{flag=0}flag'
+    const lines = content.split('\n');
+    let deploymentSection = '';
+    let capturing = false;
+    for (const line of lines) {
+      if (/^## Procedimiento de despliegue/i.test(line)) {
+        capturing = true;
+        continue;
+      }
+      if (capturing && /^## /.test(line)) {
+        break;
+      }
+      if (capturing) {
+        deploymentSection += line + '\n';
+      }
+    }
+    
+    if (!deploymentSection.trim()) {
+      throw new Error('No se encontró la sección "## Procedimiento de despliegue" en el README');
+    }
     if (!deploymentSectionMatch) {
       throw new Error('No se encontró la sección "## Procedimiento de despliegue" en el README');
     }
     
-    const deploymentSection = deploymentSectionMatch[1];
-    const deploymentMatch = deploymentSection.match(/desplegar en los grupos de ejecución:\s*([^\n#]+)/i);
-    
-    if (!deploymentMatch) {
-      throw new Error(`No se encontró la frase "desplegar en los grupos de ejecución:" en el procedimiento de despliegue para el servicio '${serviceName}'`);
-    }
-    
-    // Extract groups - could be on same line or next line
-    let groupsText = deploymentMatch[1].trim();
-    
-    // If empty, try to get from next line
-    if (!groupsText) {
-      const nextLineMatch = deploymentSection.match(/desplegar en los grupos de ejecución:\s*\n\s*([^\n#]+)/i);
-      if (nextLineMatch && nextLineMatch[1]) {
-        groupsText = nextLineMatch[1].trim();
+    // Find the line with "desplegar en los grupos de ejecución:"
+    const deploymentLines = deploymentSection.split('\n');
+    let groupsText = '';
+    for (let i = 0; i < deploymentLines.length; i++) {
+      const line = deploymentLines[i];
+      if (/desplegar en los grupos de ejecución:/i.test(line)) {
+        // Try to get groups from same line first
+        const sameLineMatch = line.match(/desplegar en los grupos de ejecución:\s*(.+)/i);
+        if (sameLineMatch && sameLineMatch[1].trim()) {
+          groupsText = sameLineMatch[1].trim();
+        } else if (i + 1 < deploymentLines.length) {
+          // Get next line (like awk getline)
+          groupsText = deploymentLines[i + 1].trim();
+        }
+        break;
       }
     }
     
     if (!groupsText) {
-      throw new Error(`No se pudieron extraer los grupos de ejecución para el servicio '${serviceName}'. La frase "desplegar en los grupos de ejecución:" se encontró pero no hay grupos especificados después.`);
+      throw new Error(`No se encontró la frase "desplegar en los grupos de ejecución:" en el procedimiento de despliegue para el servicio '${serviceName}'`);
     }
+
     
     const readmeGroups = groupsText
       .split(/[\s,]+/)
