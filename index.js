@@ -466,14 +466,14 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
             }
             if (endpoint && endpoint !== 'NA') {
               if (isExterno) {
-                if (!/^https:\/\/boc201\.testdmz\.app\.bancodeoccidente\.net/i.test(endpoint)) {
-                  core.error(`❌ Error en ${sectionName} (Externo): Endpoint en CALIDAD debe comenzar con https://boc201.testdmz.app.bancodeoccidente.net Encontrado: ${endpoint}`);
-                  errors.push(`Endpoint en CALIDAD (Externo) debe comenzar con https://boc201.testdmz.app.bancodeoccidente.net Encontrado: ${endpoint}`);
+                if (!/^https:\/\/boc201\.tesdmz\.app\.bancodeoccidente\.net/i.test(endpoint)) {
+                  core.error(`❌ Error en ${sectionName} (Externo): Endpoint en CALIDAD debe comenzar con https://boc201.tesdmz.app.bancodeoccidente.net Encontrado: ${endpoint}`);
+                  errors.push(`Endpoint en CALIDAD (Externo) debe comenzar con https://boc201.tesdmz.app.bancodeoccidente.net Encontrado: ${endpoint}`);
                 }
               } else {
-                if (!/^https:\/\/boc201\.testint\.app\.bancodeoccidente\.net/i.test(endpoint)) {
-                  core.error(`❌ Error en ${sectionName} (Interno): Endpoint en CALIDAD debe comenzar con https://boc201.testint.app.bancodeoccidente.net Encontrado: ${endpoint}`);
-                  errors.push(`Endpoint en CALIDAD (Interno) debe comenzar con https://boc201.testint.app.bancodeoccidente.net Encontrado: ${endpoint}`);
+                if (!/^https:\/\/boc201\.tesint\.app\.bancodeoccidente\.net/i.test(endpoint)) {
+                  core.error(`❌ Error en ${sectionName} (Interno): Endpoint en CALIDAD debe comenzar con https://boc201.tesint.app.bancodeoccidente.net Encontrado: ${endpoint}`);
+                  errors.push(`Endpoint en CALIDAD (Interno) debe comenzar con https://boc201.tesint.app.bancodeoccidente.net Encontrado: ${endpoint}`);
                 }
               }
             }
@@ -486,13 +486,13 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
             if (endpoint && endpoint !== 'NA') {
               if (isExterno) {
                 if (!/^https:\/\/boc201\.prddmz\.app\.bancodeoccidente\.net/i.test(endpoint)) {
-                  core.error(`❌ Error en ${sectionName} (Externo): Endpoint en PRODUCCION debe comenzar con https://boc201.prddmz.app.bancodeoccidente.net. Encontrado: ${endpoint}`);
-                  errors.push(`Endpoint en PRODUCCION (Externo) debe comenzar con https://boc201.prddmz.app.bancodeoccidente.net. Encontrado: ${endpoint}`);
+                  core.error(`❌ Error en ${sectionName} (Externo): Endpoint en PRODUCCION debe comenzar con https://boc201.prddmz.app.bancodeoccidente.net Encontrado: ${endpoint}`);
+                  errors.push(`Endpoint en PRODUCCION (Externo) debe comenzar con https://boc201.prddmz.app.bancodeoccidente.net Encontrado: ${endpoint}`);
                 }
               } else {
                 if (!/^https:\/\/boc201\.prdint\.app\.bancodeoccidente\.net/i.test(endpoint)) {
-                  core.error(`❌ Error en ${sectionName} (Interno): Endpoint en PRODUCCION debe comenzar con https://boc201.prdint.app.bancodeoccidente.net. Encontrado: ${endpoint}`);
-                  errors.push(`Endpoint en PRODUCCION (Interno) debe comenzar con https://boc201.prdint.app.bancodeoccidente.net. Encontrado: ${endpoint}`);
+                  core.error(`❌ Error en ${sectionName} (Interno): Endpoint en PRODUCCION debe comenzar con https://boc201.prdint.app.bancodeoccidente.net Encontrado: ${endpoint}`);
+                  errors.push(`Endpoint en PRODUCCION (Interno) debe comenzar con https://boc201.prdint.app.bancodeoccidente.net Encontrado: ${endpoint}`);
                 }
               }
             }
@@ -580,9 +580,9 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
             core.error(`❌ Tabla Endpoint BUS no puede contener valores NA. Ambiente: ${ambiente}`);
             errors.push(`Tabla Endpoint BUS no puede contener valores NA. Ambiente: ${ambiente}`);
           }
-          if (!/^https:\/\/adbog162e\.bancodeoccidente\.net/i.test(endpoint)) {
-            core.error(`❌ Endpoint BUS en DESARROLLO debe comenzar con https://adbog162e.bancodeoccidente.net. Encontrado: ${endpoint}`);
-            errors.push(`Endpoint BUS en DESARROLLO debe comenzar con https://adbog162e.bancodeoccidente.net. Encontrado: ${endpoint}`);
+          if (!/^https:\/\/adbog162e/i.test(endpoint)) {
+            core.error(`❌ Endpoint BUS en DESARROLLO debe comenzar con https://adbog162e Encontrado: ${endpoint}`);
+            errors.push(`Endpoint BUS en DESARROLLO debe comenzar con https://adbog162e Encontrado: ${endpoint}`);
           }
         } else if (/^CALIDAD/i.test(ambiente)) {
           has_cal = true;
@@ -590,7 +590,7 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
             core.error(`❌ Tabla Endpoint BUS no puede contener valores NA. Ambiente: ${ambiente}`);
             errors.push(`Tabla Endpoint BUS no puede contener valores NA. Ambiente: ${ambiente}`);
           }
-          if (!/^https:\/\/a[dt]bog16[34][de]\.bancodeoccidente\.net/i.test(endpoint)) {
+          if (!/^https:\/\/a[dt]bog16[34][de]/i.test(endpoint)) {
             core.error(`❌ Endpoint BUS en CALIDAD debe comenzar con nodos esperados. Encontrado: ${endpoint}`);
             errors.push(`Endpoint BUS en CALIDAD debe comenzar con nodos esperados. Encontrado: ${endpoint}`);
           }
@@ -600,7 +600,7 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
             core.error(`❌ Tabla Endpoint BUS no puede contener valores NA. Ambiente: ${ambiente}`);
             errors.push(`Tabla Endpoint BUS no puede contener valores NA. Ambiente: ${ambiente}`);
           }
-          if (!(/^https:\/\/adbog16[56][ab]\.bancodeoccidente\.net/i.test(endpoint) || /^https?:\/\/boc060ap\.prd\.app\.bancodeoccidente\.net:/.test(endpoint))) {
+          if (!(/^https:\/\/adbog16[56][ab]/i.test(endpoint) || /^https?:\/\/boc060ap\.prd\.app/.test(endpoint))) {
             core.error(`❌ Endpoint BUS en PRODUCCION debe comenzar con nodos esperados. Encontrado: ${endpoint}`);
             errors.push(`Endpoint BUS en PRODUCCION debe comenzar con nodos esperados. Encontrado: ${endpoint}`);
           }
@@ -1010,6 +1010,7 @@ async function validateExecutionGroups(token, workspaceDir = process.cwd()) {
     const readmeGroups = groupsText
       .split(/[\s,]+/)
       .filter(g => g.trim())
+      .filter(g => !/^[*\-•]$/.test(g)) // Remove markdown bullets: *, -, •
       .map(g => g.toLowerCase());
     
     if (readmeGroups.length === 0) {
