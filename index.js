@@ -580,9 +580,11 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
             core.error(`❌ Tabla Endpoint BUS no puede contener valores NA. Ambiente: ${ambiente}`);
             errors.push(`Tabla Endpoint BUS no puede contener valores NA. Ambiente: ${ambiente}`);
           }
-          if (!/^https:\/\/adbog162e/i.test(endpoint)) {
-            core.error(`❌ Endpoint BUS en DESARROLLO debe comenzar con https://adbog162e Encontrado: ${endpoint}`);
-            errors.push(`Endpoint BUS en DESARROLLO debe comenzar con https://adbog162e Encontrado: ${endpoint}`);
+          if (!/^https?:\/\/adbog162e/i.test(endpoint)) {
+            core.error(`❌ Endpoint BUS en DESARROLLO debe comenzar con https://adbog162e o http://adbog162e. Encontrado: ${endpoint}`);
+            errors.push(`Endpoint BUS en DESARROLLO debe comenzar con https://adbog162e o http://adbog162e. Encontrado: ${endpoint}`);
+          } else if (/^http:\/\//i.test(endpoint)) {
+            core.warning(`⚠️  Endpoint BUS en DESARROLLO usa HTTP (no HTTPS): ${endpoint}. Verifica si esto es correcto o si debería usar HTTPS.`);
           }
         } else if (/^CALIDAD/i.test(ambiente)) {
           has_cal = true;
@@ -590,9 +592,11 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
             core.error(`❌ Tabla Endpoint BUS no puede contener valores NA. Ambiente: ${ambiente}`);
             errors.push(`Tabla Endpoint BUS no puede contener valores NA. Ambiente: ${ambiente}`);
           }
-          if (!/^https:\/\/a[dt]bog16[34][de]/i.test(endpoint)) {
-            core.error(`❌ Endpoint BUS en CALIDAD debe comenzar con nodos esperados. Encontrado: ${endpoint}`);
-            errors.push(`Endpoint BUS en CALIDAD debe comenzar con nodos esperados. Encontrado: ${endpoint}`);
+          if (!/^https?:\/\/a[dt]bog16[34][de]/i.test(endpoint)) {
+            core.error(`❌ Endpoint BUS en CALIDAD debe comenzar con nodos esperados (atbog163d, atbog164e, adbog163e, adbog164d). Encontrado: ${endpoint}`);
+            errors.push(`Endpoint BUS en CALIDAD debe comenzar con nodos esperados (atbog163d, atbog164e, adbog163e, adbog164d). Encontrado: ${endpoint}`);
+          } else if (/^http:\/\//i.test(endpoint)) {
+            core.warning(`⚠️  Endpoint BUS en CALIDAD usa HTTP (no HTTPS): ${endpoint}. Verifica si esto es correcto o si debería usar HTTPS.`);
           }
         } else if (/^PRODUCCION/i.test(ambiente)) {
           has_prd = true;
@@ -600,9 +604,11 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
             core.error(`❌ Tabla Endpoint BUS no puede contener valores NA. Ambiente: ${ambiente}`);
             errors.push(`Tabla Endpoint BUS no puede contener valores NA. Ambiente: ${ambiente}`);
           }
-          if (!(/^https:\/\/adbog16[56][ab]/i.test(endpoint) || /^https?:\/\/boc060ap\.prd\.app/.test(endpoint))) {
-            core.error(`❌ Endpoint BUS en PRODUCCION debe comenzar con nodos esperados. Encontrado: ${endpoint}`);
-            errors.push(`Endpoint BUS en PRODUCCION debe comenzar con nodos esperados. Encontrado: ${endpoint}`);
+          if (!(/^https?:\/\/adbog16[56][ab]/i.test(endpoint) || /^https?:\/\/boc060ap\.prd\.app/.test(endpoint))) {
+            core.error(`❌ Endpoint BUS en PRODUCCION debe comenzar con nodos esperados (adbog165a, adbog165b, adbog166a, adbog166b o boc060ap.prd.app). Encontrado: ${endpoint}`);
+            errors.push(`Endpoint BUS en PRODUCCION debe comenzar con nodos esperados (adbog165a, adbog165b, adbog166a, adbog166b o boc060ap.prd.app). Encontrado: ${endpoint}`);
+          } else if (/^http:\/\//i.test(endpoint)) {
+            core.warning(`⚠️  Endpoint BUS en PRODUCCION usa HTTP (no HTTPS): ${endpoint}. Verifica si esto es correcto o si debería usar HTTPS.`);
           }
         }
       }
@@ -994,9 +1000,13 @@ async function validateExecutionGroups(token, workspaceDir = process.cwd()) {
         const sameLineMatch = line.match(/desplegar en los grupos de ejecución:\s*(.+)/i);
         if (sameLineMatch && sameLineMatch[1].trim()) {
           groupsText = sameLineMatch[1].trim();
-        } else if (i + 1 < deploymentLines.length) {
-          // Get next line (like awk getline)
-          groupsText = deploymentLines[i + 1].trim();
+        } else {
+          // Get next lines until we hit another section or empty lines
+          for (let j = i + 1; j < deploymentLines.length && j < i + 10; j++) {
+            const nextLine = deploymentLines[j].trim();
+            if (!nextLine || /^##/.test(nextLine)) break;
+            groupsText += (groupsText ? ' ' : '') + nextLine;
+          }
         }
         break;
       }
