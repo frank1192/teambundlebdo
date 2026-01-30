@@ -120,20 +120,27 @@ async function run() {
     
     // Job 3: Repository reviews (grouped)
     core.startGroup('🔍 Revisiones: Repositorio');
+    
+    // Validate no BD folders
     try {
-      // Validate no BD folders
       results.bdFolders = await validateNoBDFolders(workspaceDir);
       core.info('✅ No se encontraron carpetas BD');
-      
-      // Validate reviewers and routes
-      if (payload.pull_request) {
-        results.reviewersAndRoutes = await validateReviewersAndRoutes(payload, token);
-        core.info('✅ Revisores y rutas válidos');
-      }
     } catch (error) {
       core.error(`❌ ${error.message}`);
       results.bdFolders = false;
     }
+    
+    // Validate reviewers and routes
+    if (payload.pull_request) {
+      try {
+        results.reviewersAndRoutes = await validateReviewersAndRoutes(payload, token);
+        core.info('✅ Revisores y rutas válidos');
+      } catch (error) {
+        core.error(`❌ ${error.message}`);
+        results.reviewersAndRoutes = false;
+      }
+    }
+    
     core.endGroup();
     
     // Summary
@@ -1245,20 +1252,47 @@ async function validateReviewersAndRoutes(payload, token) {
   
   // Validate develop → quality
   if (targetBranch === 'quality' && sourceBranch === 'develop') {
+    core.info(`📍 Validando revisores para flujo develop → quality`);
     if (!hasValidReviewer) {
       throw new Error(`Falta revisor válido para calidad. Autorizados: ${validReviewers.join(', ')}`);
     }
+    core.info(`✓ Revisor válido encontrado para calidad`);
+    return true;
   }
   
   // Validate quality → main
   if (targetBranch === 'main' && sourceBranch === 'quality') {
+    core.info(`📍 Validando revisores para flujo quality → main`);
     if (!hasValidReviewer) {
       throw new Error(`Falta revisor válido para producción. Autorizados: ${validReviewers.join(', ')}`);
     }
+    core.info(`✓ Revisor válido encontrado para producción`);
+    return true;
+  }
+  
+  // Validate main → quality (rollback de producción a calidad)
+  if (targetBranch === 'quality' && sourceBranch === 'main') {
+    core.info(`📍 Validando revisores para flujo main → quality (rollback de producción)`);
+    if (!hasValidReviewer) {
+      throw new Error(`Falta revisor válido para rollback de producción. Autorizados: ${validReviewers.join(', ')}`);
+    }
+    core.info(`✓ Revisor válido encontrado para rollback de producción`);
+    return true;
+  }
+  
+  // Validate quality → develop (rollback o corrección)
+  if (targetBranch === 'develop' && sourceBranch === 'quality') {
+    core.info(`📍 Validando revisores para flujo quality → develop (rollback/corrección)`);
+    if (!hasValidReviewer) {
+      throw new Error(`Falta revisor válido para rollback a develop. Autorizados: ${validReviewers.join(', ')}`);
+    }
+    core.info(`✓ Revisor válido encontrado para rollback`);
+    return true;
   }
   
   // Check for emergency exception (feature/** → develop)
   if (targetBranch === 'develop' && sourceBranch.startsWith('feature/')) {
+    core.info(`📍 Validando flujo feature → develop (opcional)`);
     if (!hasValidReviewer) {
       // Check for emergency approval comment using @actions/github
       try {
@@ -1277,12 +1311,19 @@ async function validateReviewersAndRoutes(payload, token) {
           core.warning('⚠️  Excepción de emergencia detectada en comentarios');
           return true;
         }
+        
+        core.info('ℹ️  No hay revisor asignado, pero no es obligatorio para este flujo');
       } catch (error) {
         core.debug(`No se pudieron verificar comentarios del PR: ${error.message}`);
       }
+    } else {
+      core.info(`✓ Revisor asignado: ${requestedReviewers.join(', ')}`);
     }
+    return true;
   }
   
+  // Para cualquier otro flujo, no requerir revisores
+  core.info(`📍 Flujo ${sourceBranch} → ${targetBranch}: validación de revisores no requerida`);
   return true;
 }
 
