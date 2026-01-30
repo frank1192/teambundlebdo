@@ -189,10 +189,11 @@ async function validateBranchName(payload) {
   }
   
   const branchName = payload.pull_request.head.ref;
-  const pattern = /^(feature|bugfix|hotfix|release)\/[A-Za-z0-9._-]+$/;
+  // Allow main branches (develop, quality, main) and GitFlow branches
+  const pattern = /^(feature|bugfix|hotfix|release)\/[A-Za-z0-9._-]+$|^(develop|quality|main)$/;
   
   if (!pattern.test(branchName)) {
-    throw new Error(`Nombre de rama inválido: '${branchName}'. Debe comenzar con 'feature/', 'bugfix/', 'hotfix/' o 'release/'`);
+    throw new Error(`Nombre de rama inválido: '${branchName}'. Debe comenzar con 'feature/', 'bugfix/', 'hotfix/', 'release/' o ser 'develop', 'quality', 'main'`);
   }
   
   return true;
@@ -410,14 +411,14 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
 
     const isOnlyNA = (txt) => {
       if (!txt) return false;
-      // Remove HTML tags, markdown elements, and whitespace to check if content is only NA/No Aplica
+      // Remove HTML tags, markdown elements, and whitespace to check if content is only NA/No Aplica or specific texts
       const clean = txt
         .replace(/<[^>]+>/g, '') // Remove HTML tags like <br>
         .replace(/\*\*/g, '')     // Remove bold markdown
         .replace(/\r?\n/g, ' ')   // Replace newlines with space
         .replace(/\s+/g, ' ')     // Normalize whitespace
         .trim();
-      return /^(N\s*\/?\s*A|No\s+Aplica)$/i.test(clean);
+      return /^(N\s*\/?\s*A|No\s+Aplica|no\s+expuesto\s+en\s+DP\s+(Interno|Externo))$/i.test(clean);
     };
 
     function extractTableRows(sectionText) {
@@ -446,31 +447,39 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
       for (const row of rows) {
         const cols = row.replace(/^\||\|$/g, '').split('|').map(s => s.trim());
         const ambiente = cols[0] || '';  // AMBIENTE es la primera columna (índice 0)
+        const tipoComponente = cols[1] || ''; // TIPO COMPONENTE es la segunda columna
+        const nombreWSP = cols[2] || ''; // NOMBRE WSP O MPG es la tercera columna
         const datapower = cols[3] || ''; // DATAPOWER es la cuarta columna (índice 3)
         const endpoint = cols[4] || '';  // ENDPOINT es la quinta columna (índice 4)
         const rowContent = cols.join(' ');
-        if (!/^\s*(DESARROLLO|CALIDAD|PRODUCCION)/i.test(ambiente)) continue;
-        if (!/^(DESARROLLO|CALIDAD|PRODUCCION)/i.test(ambiente)) continue;
-        // Determine NA-only pattern
-        if (!/^((DESARROLLO|CALIDAD|PRODUCCION)\s+N\/?A\s+N\/?A\s+N\/?A\s+N\/?A)$/i.test(rowContent)) {
+        if (!/^\s*(DESARROLLO|CALIDAD|PRODUCCI[OÓ]N)/i.test(ambiente)) continue;
+        if (!/^(DESARROLLO|CALIDAD|PRODUCCI[OÓ]N)/i.test(ambiente)) continue;
+        
+        // Check if this is a N/A row (all values are N/A, NA, or Pendiente)
+        const isNARow = /^(N\/?A|NA|Pendiente)$/i.test(tipoComponente) && 
+                        /^(N\/?A|NA|Pendiente)$/i.test(nombreWSP) && 
+                        /^(N\/?A|NA|Pendiente)$/i.test(datapower) && 
+                        /^(N\/?A|NA|Pendiente)$/i.test(endpoint);
+        
+        if (!isNARow) {
           all_na = false;
-          // perform validations per ambiente
+          // perform validations per ambiente - skip if NA or Pendiente
           if (/^DESARROLLO/i.test(ambiente)) { has_des = true;
-            if (datapower && datapower !== 'NA' && !/^BODP.*DEV$/i.test(datapower)) {
+            if (datapower && !/^(N\/A|NA|Pendiente)$/i.test(datapower) && !/^BODP.*DEV$/i.test(datapower)) {
               core.error(`❌ Error en ${sectionName}: Datapower en DESARROLLO debe comenzar con BODP y terminar con DEV. Encontrado: ${datapower}`);
               errors.push(`Datapower en DESARROLLO debe comenzar con BODP y terminar con DEV. Encontrado: ${datapower}`);
             }
-            if (endpoint && endpoint !== 'NA' && !/^https:\/\/boc201\.des\.app\.bancodeoccidente\.net/i.test(endpoint)) {
+            if (endpoint && !/^(N\/A|NA|Pendiente)$/i.test(endpoint) && !/^https:\/\/boc201\.des\.app\.bancodeoccidente\.net/i.test(endpoint)) {
               core.error(`❌ Error en ${sectionName}: Endpoint en DESARROLLO debe comenzar con https://boc201.des.app.bancodeoccidente.net Encontrado: ${endpoint}`);
               errors.push(`Endpoint en DESARROLLO debe comenzar con https://boc201.des.app.bancodeoccidente.net Encontrado: ${endpoint}`);
             }
           }
           if (/^CALIDAD/i.test(ambiente)) { has_cal = true;
-            if (datapower && datapower !== 'NA' && !/^BODP.*QAS$/i.test(datapower)) {
+            if (datapower && !/^(N\/A|NA|Pendiente)$/i.test(datapower) && !/^BODP.*QAS$/i.test(datapower)) {
               core.error(`❌ Error en ${sectionName}: Datapower en CALIDAD debe comenzar con BODP y terminar con QAS. Encontrado: ${datapower}`);
               errors.push(`Datapower en CALIDAD debe comenzar con BODP y terminar con QAS. Encontrado: ${datapower}`);
             }
-            if (endpoint && endpoint !== 'NA') {
+            if (endpoint && !/^(N\/A|NA|Pendiente)$/i.test(endpoint)) {
               if (isExterno) {
                 if (!/^https:\/\/boc201\.tesdmz\.app\.bancodeoccidente\.net/i.test(endpoint)) {
                   core.error(`❌ Error en ${sectionName} (Externo): Endpoint en CALIDAD debe comenzar con https://boc201.tesdmz.app.bancodeoccidente.net Encontrado: ${endpoint}`);
@@ -484,12 +493,12 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
               }
             }
           }
-          if (/^PRODUCCION/i.test(ambiente)) { has_prd = true;
-            if (datapower && datapower !== 'NA' && !/^BODP.*PRD$/i.test(datapower)) {
+          if (/^PRODUCCI[OÓ]N/i.test(ambiente)) { has_prd = true;
+            if (datapower && !/^(N\/A|NA|Pendiente)$/i.test(datapower) && !/^BODP.*PRD$/i.test(datapower)) {
               core.error(`❌ Error en ${sectionName}: Datapower en PRODUCCION debe comenzar con BODP y terminar con PRD. Encontrado: ${datapower}`);
               errors.push(`Datapower en PRODUCCION debe comenzar con BODP y terminar con PRD. Encontrado: ${datapower}`);
             }
-            if (endpoint && endpoint !== 'NA') {
+            if (endpoint && !/^(N\/A|NA|Pendiente)$/i.test(endpoint)) {
               if (isExterno) {
                 if (!/^https:\/\/boc201\.prddmz\.app\.bancodeoccidente\.net/i.test(endpoint)) {
                   core.error(`❌ Error en ${sectionName} (Externo): Endpoint en PRODUCCION debe comenzar con https://boc201.prddmz.app.bancodeoccidente.net Encontrado: ${endpoint}`);
@@ -604,15 +613,15 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
           } else if (/^http:\/\//i.test(endpoint)) {
             core.warning(`⚠️  Endpoint BUS en CALIDAD usa HTTP (no HTTPS): ${endpoint}. Verifica si esto es correcto o si debería usar HTTPS.`);
           }
-        } else if (/^PRODUCCION/i.test(ambiente)) {
+        } else if (/^PRODUCCI[OÓ]N/i.test(ambiente)) {
           has_prd = true;
           if (/^NA$/i.test(endpoint)) {
             core.error(`❌ Tabla Endpoint BUS no puede contener valores NA. Ambiente: ${ambiente}`);
             errors.push(`Tabla Endpoint BUS no puede contener valores NA. Ambiente: ${ambiente}`);
           }
-          if (!(/^https?:\/\/adbog16[56][ab]/i.test(endpoint) || /^https?:\/\/boc060ap\.prd\.app/.test(endpoint))) {
-            core.error(`❌ Endpoint BUS en PRODUCCION debe comenzar con nodos esperados (adbog165a, adbog165b, adbog166a, adbog166b o boc060ap.prd.app). Encontrado: ${endpoint}`);
-            errors.push(`Endpoint BUS en PRODUCCION debe comenzar con nodos esperados (adbog165a, adbog165b, adbog166a, adbog166b o boc060ap.prd.app). Encontrado: ${endpoint}`);
+          if (!(/^https?:\/\/apbog16[56][ab]/i.test(endpoint) || /^https?:\/\/boc060ap\.prd\.app/.test(endpoint))) {
+            core.error(`❌ Endpoint BUS en PRODUCCION debe comenzar con nodos esperados (apbog165a, apbog165b, apbog166a, apbog166b o boc060ap.prd.app). Encontrado: ${endpoint}`);
+            errors.push(`Endpoint BUS en PRODUCCION debe comenzar con nodos esperados (apbog165a, apbog165b, apbog166a, apbog166b o boc060ap.prd.app). Encontrado: ${endpoint}`);
           } else if (/^http:\/\//i.test(endpoint)) {
             core.warning(`⚠️  Endpoint BUS en PRODUCCION usa HTTP (no HTTPS): ${endpoint}. Verifica si esto es correcto o si debería usar HTTPS.`);
           }
@@ -780,11 +789,11 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
   let docSection = '';
   let capturingDoc = false;
   for (const line of docLines) {
-    if (/^## DOCUMENTACION/i.test(line)) {
+    if (/^\s*## DOCUMENTACION/i.test(line)) {
       capturingDoc = true;
       continue;
     }
-    if (capturingDoc && /^## /.test(line)) break;
+    if (capturingDoc && /^\s*## /.test(line)) break;
     if (capturingDoc) docSection += line + '\n';
   }
   
@@ -800,38 +809,151 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
     core.info('  ✔️ Validando campo \'Documento de diseño detallado\'');
     if (/\*\*Documento de diseño detallado\*\*/i.test(docContent) || /Documento de diseño detallado/i.test(docContent)) {
       const disenoFragment = (docContent.match(/\*\*Documento de diseño detallado(?:\*\*)?:.*?(?=\*\*[A-Z]|$)/i) || [''])[0];
-      if (/https:\/\/bancoccidente\.sharepoint\.com\/:f:\/r\/sites\/BibliotecaAplicaciones\//i.test(disenoFragment)) notices.push("Enlace SharePoint válido para 'Documento de diseño detallado'"); else errors.push("El campo 'Documento de diseño detallado' debe tener un enlace que comience con 'https://bancoccidente.sharepoint.com/:f:/r/sites/BibliotecaAplicaciones/'");
+      if (/https:\/\/bancoccidente\.sharepoint\.com\/(:f:\/r\/)?sites\/BibliotecaAplicaciones\//i.test(disenoFragment)) notices.push("Enlace SharePoint válido para 'Documento de diseño detallado'"); else errors.push("El campo 'Documento de diseño detallado' debe tener un enlace que comience con 'https://bancoccidente.sharepoint.com/sites/BibliotecaAplicaciones/'");
     } else {
       errors.push("Falta campo '**Documento de diseño detallado:**' en la sección DOCUMENTACION");
     }
     // Mapeo
     if (/\*\*Mapeo\*\*/i.test(docContent) || /Mapeo:/i.test(docContent)) {
       const mapeoFragment = (docContent.match(/\*\*Mapeo(?:\*\*)?:.*?(?=\*\*[A-Z]|$)/i) || [''])[0];
-      if (/https:\/\/bancoccidente\.sharepoint\.com\/:f:\/r\/sites\/BibliotecaAplicaciones\//i.test(mapeoFragment)) notices.push("Enlace SharePoint válido para 'Mapeo'"); else errors.push("El campo 'Mapeo' debe tener un enlace que comience con 'https://bancoccidente.sharepoint.com/:f:/r/sites/BibliotecaAplicaciones/'");
+      if (/https:\/\/bancoccidente\.sharepoint\.com\/(:f:\/r\/)?sites\/BibliotecaAplicaciones\//i.test(mapeoFragment)) notices.push("Enlace SharePoint válido para 'Mapeo'"); else errors.push("El campo 'Mapeo' debe tener un enlace que comience con 'https://bancoccidente.sharepoint.com/sites/BibliotecaAplicaciones/'");
     } else {
       errors.push("Falta campo '**Mapeo:**' en la sección DOCUMENTACION");
     }
     // Evidencias
     if (/Evidencias\s*\(Unitarias\/.+?\)/i.test(docContent) || /Evidencias/i.test(docContent)) {
       const evFragment = (docContent.match(/\*\*Evidencias[\s\S]*?(?=\*\*[A-Z]|$)/i) || [''])[0];
-      if (/https:\/\/bancoccidente\.sharepoint\.com\/:f:\/r\/sites\/BibliotecaAplicaciones\//i.test(evFragment)) notices.push("Enlace SharePoint válido para 'Evidencias'"); else errors.push("El campo 'Evidencias (Unitarias/Auditoria/Monitoreo)' debe tener un enlace que comience con 'https://bancoccidente.sharepoint.com/:f:/r/sites/BibliotecaAplicaciones/'");
+      if (/https:\/\/bancoccidente\.sharepoint\.com\/(:f:\/r\/)?sites\/BibliotecaAplicaciones\//i.test(evFragment)) notices.push("Enlace SharePoint válido para 'Evidencias'"); else errors.push("El campo 'Evidencias (Unitarias/Auditoria/Monitoreo)' debe tener un enlace que comience con 'https://bancoccidente.sharepoint.com/sites/BibliotecaAplicaciones/'");
     } else {
       errors.push("Falta campo '**Evidencias (Unitarias/Auditoria/Monitoreo):**' en la sección DOCUMENTACION");
     }
-    // WSDL
-    if (/\*\*WSDL\*\*/i.test(docContent) || /WSDL:/i.test(docContent)) {
+    // WSDL, SWAGGER y JSON - El servicio puede ser SOAP (WSDL), REST (SWAGGER/JSON) o híbrido (ambos)
+    const hasWSDL = /\*\*WSDL\*\*/i.test(docContent) || /WSDL:/i.test(docContent);
+    // SWAGGER puede aparecer como **SWAGGER**, **SWAGGER:**, **SWAGGER**: o **SWAGGER**:
+    const hasSWAGGER = /\*\*SWAGGER(\*\*)?:?/i.test(docContent);
+    // JSON puede aparecer como **JSON**, **JSON:**, **JSON**: o **JSON**:
+    const hasJSON = /\*\*JSON(\*\*)?:?/i.test(docContent);
+    
+    // Extract FULL repo name including ESB_ (like checklist.yml does)
+    const titleMatch = content.match(/^#\s*(ESB_.+)$/m);
+    const repo_name = titleMatch ? titleMatch[1].replace(/\.$/, '').trim() : '';
+    
+    if (!hasWSDL && !hasSWAGGER && !hasJSON) {
+      errors.push("Falta campo '**WSDL:**', '**SWAGGER:**' o '**JSON:**' en la sección DOCUMENTACION. Debe tener al menos uno.");
+    }
+    
+    // Validate WSDL if present
+    if (hasWSDL) {
+      core.info('  ✔️ Validando campo \'WSDL\'');
       // Capture WSDL content - get everything after WSDL: including line breaks
-      const wsdlStart = docContent.search(/\*\*WSDL(?:\*\*)?:/i);
-      const nextFieldMatch = docContent.substring(wsdlStart + 10).search(/\*\*[A-Z]/);
-      const wsdlEnd = nextFieldMatch > 0 ? wsdlStart + 10 + nextFieldMatch : docContent.length;
+      // Match **WSDL:** or **WSDL**: or **WSDL:
+      const wsdlStart = docContent.search(/\*\*WSDL(?::\*\*|\*\*:|:)/i);
+      
+      // Find where WSDL header ends (after the colon)
+      const headerMatch = docContent.substring(wsdlStart).match(/^\*\*WSDL(?::\*\*|\*\*:|:)/i);
+      const headerLength = headerMatch ? headerMatch[0].length : 10;
+      
+      const nextFieldMatch = docContent.substring(wsdlStart + headerLength).search(/\*\*[A-Z]/);
+      const wsdlEnd = nextFieldMatch > 0 ? wsdlStart + headerLength + nextFieldMatch : docContent.length;
       const wsdlFragment = docContent.substring(wsdlStart, wsdlEnd);
-      // Extract FULL repo name including ESB_ (like checklist.yml does)
-      const titleMatch = content.match(/^#\s*(ESB_.+)$/m);
-      const repo_name = titleMatch ? titleMatch[1].replace(/\.$/, '').trim() : '';
-      const gitPattern = new RegExp(`git\\\\${repo_name}\\\\Broker\\\\WSDL\\\\wsdl\\\\`, 'i');
-      if (gitPattern.test(wsdlFragment) || /^\s*N\/?A\s*$/i.test(wsdlFragment)) notices.push(`Ruta WSDL válida para repositorio '${repo_name}'`); else errors.push("El campo 'WSDL' debe comenzar con 'git\\${repo_name}\\Broker\\WSDL\\wsdl\\' o contener solo 'N/A'.");
-    } else {
-      errors.push("Falta campo '**WSDL:**' en la sección DOCUMENTACION");
+      
+      // Clean the fragment to check for N/A
+      const cleanFragment = wsdlFragment
+        .replace(/\*\*WSDL(?::\*\*|\*\*:|:)/i, '')
+        .replace(/<br>/gi, '')
+        .trim();
+      
+      // Accept both forward slash (/) and backslash (\\) in path
+      const gitPatternBackslash = new RegExp(`git\\\\${repo_name}\\\\Broker\\\\WSDL\\\\wsdl\\\\`, 'i');
+      const gitPatternForwardslash = new RegExp(`git/${repo_name}/Broker/WSDL/wsdl/`, 'i');
+      
+      if (gitPatternBackslash.test(wsdlFragment) || gitPatternForwardslash.test(wsdlFragment) || /^\s*N\/?A\s*$/i.test(cleanFragment)) {
+        notices.push(`Ruta WSDL válida para repositorio '${repo_name}'`);
+      } else {
+        errors.push(`El campo 'WSDL' debe comenzar con 'git/${repo_name}/Broker/WSDL/wsdl/' (o con backslashes) o contener solo 'N/A'.`);
+      }
+    }
+    
+    // Validate SWAGGER if present
+    if (hasSWAGGER) {
+      core.info('  ✔️ Validando campo \'SWAGGER\'');
+      // Capture SWAGGER content - match multiple formats: **SWAGGER**, **SWAGGER:**, **SWAGGER**: or **SWAGGER**:
+      const swaggerStart = docContent.search(/\*\*SWAGGER(\*\*)?:?/i);
+      if (swaggerStart === -1) {
+        errors.push("Error interno: SWAGGER detectado pero no se pudo localizar");
+      } else {
+        // Find where SWAGGER header ends (after the colon or after **)
+        const headerMatch = docContent.substring(swaggerStart).match(/^\*\*SWAGGER(\*\*)?:?/i);
+        const headerLength = headerMatch ? headerMatch[0].length : 12;
+        
+        const nextFieldMatch = docContent.substring(swaggerStart + headerLength).search(/\*\*[A-Z]/);
+        const swaggerEnd = nextFieldMatch > 0 ? swaggerStart + headerLength + nextFieldMatch : docContent.length;
+        const swaggerFragment = docContent.substring(swaggerStart, swaggerEnd);
+        
+        // Clean the fragment to check for N/A
+        const cleanFragment = swaggerFragment
+          .replace(/\*\*SWAGGER(\*\*)?:?/i, '')
+          .replace(/<br>/gi, '')
+          .trim();
+        
+        // Accept both forward slash (/) and backslash (\\) in path
+        // Accept both /SWAGGER/ and /JSON/ folders (some projects use JSON folder for swagger files)
+        const gitPatternBackslashSwagger = new RegExp(`git\\\\${repo_name}\\\\Broker\\\\SWAGGER`, 'i');
+        const gitPatternForwardslashSwagger = new RegExp(`git/${repo_name}/Broker/SWAGGER`, 'i');
+        const gitPatternBackslashJSON = new RegExp(`git\\\\${repo_name}\\\\Broker\\\\JSON`, 'i');
+        const gitPatternForwardslashJSON = new RegExp(`git/${repo_name}/Broker/JSON`, 'i');
+        
+        if (gitPatternBackslashSwagger.test(swaggerFragment) || 
+            gitPatternForwardslashSwagger.test(swaggerFragment) ||
+            gitPatternBackslashJSON.test(swaggerFragment) ||
+            gitPatternForwardslashJSON.test(swaggerFragment) ||
+            /^\s*N\/?A\s*$/i.test(cleanFragment)) {
+          notices.push(`Ruta SWAGGER válida para repositorio '${repo_name}'`);
+        } else {
+          errors.push(`El campo 'SWAGGER' debe comenzar con 'git/${repo_name}/Broker/SWAGGER/' o 'git/${repo_name}/Broker/JSON/' (también acepta backslashes) o contener solo 'N/A'.`);
+        }
+      }
+    }
+    
+    // Validate JSON if present (alternative to SWAGGER for REST services)
+    if (hasJSON) {
+      core.info('  ✔️ Validando campo \'JSON\'');
+      // Capture JSON content - match multiple formats: **JSON**, **JSON:**, **JSON**: or **JSON**:
+      const jsonStart = docContent.search(/\*\*JSON(\*\*)?:?/i);
+      if (jsonStart === -1) {
+        errors.push("Error interno: JSON detectado pero no se pudo localizar");
+      } else {
+        // Find where JSON header ends
+        const headerMatch = docContent.substring(jsonStart).match(/^\*\*JSON(\*\*)?:?/i);
+        const headerLength = headerMatch ? headerMatch[0].length : 8;
+        
+        const nextFieldMatch = docContent.substring(jsonStart + headerLength).search(/\*\*[A-Z]/);
+        const jsonEnd = nextFieldMatch > 0 ? jsonStart + headerLength + nextFieldMatch : docContent.length;
+        const jsonFragment = docContent.substring(jsonStart, jsonEnd);
+        
+        // Clean the fragment to check for N/A
+        const cleanFragment = jsonFragment
+          .replace(/\*\*JSON(\*\*)?:?/i, '')
+          .replace(/<br>/gi, '')
+          .trim();
+        
+        // Accept both forward slash (/) and backslash (\\) in path
+        // Accept both /JSON/ and /SWAGGER/ folders (JSON files can be in either)
+        const gitPatternBackslashJSON = new RegExp(`git\\\\${repo_name}\\\\Broker\\\\JSON`, 'i');
+        const gitPatternForwardslashJSON = new RegExp(`git/${repo_name}/Broker/JSON`, 'i');
+        const gitPatternBackslashSwagger = new RegExp(`git\\\\${repo_name}\\\\Broker\\\\SWAGGER`, 'i');
+        const gitPatternForwardslashSwagger = new RegExp(`git/${repo_name}/Broker/SWAGGER`, 'i');
+        
+        if (gitPatternBackslashJSON.test(jsonFragment) || 
+            gitPatternForwardslashJSON.test(jsonFragment) ||
+            gitPatternBackslashSwagger.test(jsonFragment) ||
+            gitPatternForwardslashSwagger.test(jsonFragment) ||
+            /^\s*N\/?A\s*$/i.test(cleanFragment)) {
+          notices.push(`Ruta JSON válida para repositorio '${repo_name}'`);
+        } else {
+          errors.push(`El campo 'JSON' debe comenzar con 'git/${repo_name}/Broker/JSON/' o 'git/${repo_name}/Broker/SWAGGER/' (también acepta backslashes) o contener solo 'N/A'.`);
+        }
+      }
     }
   }
 
@@ -1057,12 +1179,20 @@ async function validateExecutionGroups(token, workspaceDir = process.cwd()) {
     const configContent = Buffer.from(response.data.content, 'base64').toString('utf8');
     
     // Extract groups from config
+    // Try to match with and without 'Policy' suffix
     core.info(`🔍 Buscando entradas para ESB_ACE12_${serviceName}...`);
-    const transactionalMatch = configContent.match(new RegExp(`ESB_ACE12_${serviceName}\\.Transactional=([^\n]+)`, 'i'));
-    const notificationMatch = configContent.match(new RegExp(`ESB_ACE12_${serviceName}\\.Notification=([^\n]+)`, 'i'));
+    let transactionalMatch = configContent.match(new RegExp(`ESB_ACE12_${serviceName}\\.Transactional=([^\n]+)`, 'i'));
+    let notificationMatch = configContent.match(new RegExp(`ESB_ACE12_${serviceName}\\.Notification=([^\n]+)`, 'i'));
+    
+    // If not found, try with 'Policy' suffix
+    if (!transactionalMatch && !notificationMatch) {
+      core.info(`🔍 No se encontró ${serviceName}, intentando con ${serviceName}Policy...`);
+      transactionalMatch = configContent.match(new RegExp(`ESB_ACE12_${serviceName}Policy\\.Transactional=([^\n]+)`, 'i'));
+      notificationMatch = configContent.match(new RegExp(`ESB_ACE12_${serviceName}Policy\\.Notification=([^\n]+)`, 'i'));
+    }
     
     if (!transactionalMatch && !notificationMatch) {
-      throw new Error(`No existe entry ESB_ACE12_${serviceName}.Transactional ni ESB_ACE12_${serviceName}.Notification en el archivo de configuración`);
+      throw new Error(`No existe entry ESB_ACE12_${serviceName}.Transactional ni ESB_ACE12_${serviceName}.Notification (ni con sufijo Policy) en el archivo de configuración`);
     }
     
     if (transactionalMatch) {
