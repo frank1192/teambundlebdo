@@ -445,6 +445,7 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
       }
       let all_na = true;
       let has_des = false, has_cal = false, has_prd = false;
+      let has_des_real = false, has_cal_real = false, has_prd_real = false;
       for (const row of rows) {
         const cols = row.replace(/^\||\|$/g, '').split('|').map(s => s.trim());
         const ambiente = cols[0] || '';  // AMBIENTE es la primera columna (índice 0)
@@ -461,6 +462,11 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
                         /^(N\/?A|NA|Pendiente)$/i.test(nombreWSP) && 
                         /^(N\/?A|NA|Pendiente)$/i.test(datapower) && 
                         /^(N\/?A|NA|Pendiente)$/i.test(endpoint);
+        
+        // Marcar que existe el ambiente (aunque sea N/A)
+        if (/^DESARROLLO/i.test(ambiente)) { has_des = true; if (!isNARow) has_des_real = true; }
+        if (/^CALIDAD/i.test(ambiente)) { has_cal = true; if (!isNARow) has_cal_real = true; }
+        if (/^PRODUCCI[OÓ]N/i.test(ambiente)) { has_prd = true; if (!isNARow) has_prd_real = true; }
         
         if (!isNARow) {
           all_na = false;
@@ -515,17 +521,18 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
           }
         }
       }
+      // Validar que existan los 3 ambientes (pueden ser N/A)
       if (!has_des) {
-        core.error(`❌ Tabla ${sectionName} debe tener al menos una endpoint para DESARROLLO`);
-        errors.push(`Tabla ${sectionName} debe tener al menos una endpoint para DESARROLLO`);
+        core.error(`❌ Tabla ${sectionName} debe tener una fila para DESARROLLO (puede ser N/A)`);
+        errors.push(`Tabla ${sectionName} debe tener una fila para DESARROLLO (puede ser N/A)`);
       }
       if (!has_cal) {
-        core.error(`❌ Tabla ${sectionName} debe tener al menos una endpoint para CALIDAD`);
-        errors.push(`Tabla ${sectionName} debe tener al menos una endpoint para CALIDAD`);
+        core.error(`❌ Tabla ${sectionName} debe tener una fila para CALIDAD (puede ser N/A)`);
+        errors.push(`Tabla ${sectionName} debe tener una fila para CALIDAD (puede ser N/A)`);
       }
       if (!has_prd) {
-        core.error(`❌ Tabla ${sectionName} debe tener al menos una endpoint para PRODUCCION`);
-        errors.push(`Tabla ${sectionName} debe tener al menos una endpoint para PRODUCCION`);
+        core.error(`❌ Tabla ${sectionName} debe tener una fila para PRODUCCION (puede ser N/A)`);
+        errors.push(`Tabla ${sectionName} debe tener una fila para PRODUCCION (puede ser N/A)`);
       }
       if (all_na) {
         core.info(`::notice title=Validación de README.md::Tabla ${sectionName} contiene solo valores NA (válido)`);
@@ -983,26 +990,38 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
       if (foundQueries.length === 0) {
         core.warning('⚠️  No se encontraron queries SQL con códigos de operación en la sección SQL');
       } else {
-        for (const q of foundQueries) {
-          // = 'value'
-          if (/=\s*'([^']+)'/.test(q)) {
-            const val = q.match(/=\s*'([^']+)'/)[1];
-            if (!/^\d+$/.test(val)) {
-              core.error(`❌ Código de operación contiene caracteres no numéricos. Solo se permiten números: ${q}`);
-              errors.push(`Código de operación contiene caracteres no numéricos. Solo se permiten números: ${q}`);
+        // Verificar si al menos una query usa num_id_tipo_operacion con código numérico
+        const hasNumericCode = foundQueries.some(q => {
+          const match = q.match(/num_id_tipo_operacion\s*=\s*'(\d+)'/i);
+          return match && /^\d+$/.test(match[1]);
+        });
+        
+        // Si hay queries con códigos numéricos, permitir también queries con str_id_oper_apl_origen
+        if (!hasNumericCode) {
+          // Solo validar estrictamente si NO hay queries con códigos numéricos
+          for (const q of foundQueries) {
+            // = 'value'
+            if (/=\s*'([^']+)'/.test(q)) {
+              const val = q.match(/=\s*'([^']+)'/)[1];
+              if (!/^\d+$/.test(val)) {
+                core.error(`❌ Código de operación contiene caracteres no numéricos. Solo se permiten números: ${q}`);
+                errors.push(`Código de operación contiene caracteres no numéricos. Solo se permiten números: ${q}`);
+              }
             }
-          }
-          // in('a','b')
-          const inMatch = q.match(/in\s*\(([^)]+)\)/i);
-          if (inMatch) {
-            const vals = inMatch[1].split(',').map(v => v.replace(/['" ]/g,'').trim()).filter(Boolean);
-            for (const v of vals) {
-              if (/\D/.test(v)) {
-                core.error(`❌ Código de operación contiene caracteres no numéricos en lista: '${v}' en línea: ${q}`);
-                errors.push(`Código de operación contiene caracteres no numéricos en lista: '${v}' en línea: ${q}`);
+            // in('a','b')
+            const inMatch = q.match(/in\s*\(([^)]+)\)/i);
+            if (inMatch) {
+              const vals = inMatch[1].split(',').map(v => v.replace(/['" ]/g,'').trim()).filter(Boolean);
+              for (const v of vals) {
+                if (/\D/.test(v)) {
+                  core.error(`❌ Código de operación contiene caracteres no numéricos en lista: '${v}' en línea: ${q}`);
+                  errors.push(`Código de operación contiene caracteres no numéricos en lista: '${v}' en línea: ${q}`);
+                }
               }
             }
           }
+        } else {
+          core.info('✓ Queries SQL contienen códigos numéricos (queries adicionales con nombres son permitidas)');
         }
       }
     }
@@ -1242,13 +1261,30 @@ async function validateReviewersAndRoutes(payload, token) {
   const prNumber = payload.pull_request.number;
   
   // Get valid reviewers from input or use defaults
-  const validReviewersInput = core.getInput('valid-reviewers') || 'DRamirezM_bocc,cdgomez_bocc,acardenasm_bocc,CAARIZA_bocc,JJPARADA_bocc';
+  // NOTE: Supports reviewers with or without organization suffix (_bocc, etc.)
+  const validReviewersInput = core.getInput('valid-reviewers') || 'DRamirezM,cdgomez,acardenasm,CAARIZA,JJPARADA';
   const validReviewers = validReviewersInput.split(',').map(r => r.trim());
   
+  // Extract reviewer logins from PR (GitHub API may return base login or with suffix)
   const requestedReviewers = (payload.pull_request.requested_reviewers || []).map(r => r.login);
   
-  // Check if any valid reviewer is assigned
-  const hasValidReviewer = requestedReviewers.some(r => validReviewers.includes(r));
+  // Log for debugging
+  core.info(`📋 Revisores solicitados en el PR: ${requestedReviewers.length > 0 ? requestedReviewers.join(', ') : 'ninguno'}`);
+  core.info(`📋 Revisores válidos configurados: ${validReviewers.join(', ')}`);
+  
+  // Helper function to normalize reviewer name (remove common suffixes)
+  const normalizeReviewer = (name) => {
+    return name.replace(/_bocc$/i, '').trim();
+  };
+  
+  // Normalize both lists for comparison (case-insensitive and suffix-insensitive)
+  const normalizedValidReviewers = validReviewers.map(r => normalizeReviewer(r).toLowerCase());
+  const normalizedRequestedReviewers = requestedReviewers.map(r => normalizeReviewer(r).toLowerCase());
+  
+  // Check if any valid reviewer is assigned (comparing normalized names)
+  const hasValidReviewer = normalizedRequestedReviewers.some(reviewer => 
+    normalizedValidReviewers.includes(reviewer)
+  );
   
   // Validate develop → quality
   if (targetBranch === 'quality' && sourceBranch === 'develop') {
