@@ -75,12 +75,10 @@ N/A
 
 "**Evidencias (Unitarias/Auditoria/Monitoreo):**    " 
 "https://bancoccidente.sharepoint.com/sites/BibliotecaAplicaciones/Documentos%20compartidos/Forms/Docs.aspx?id=%2Fsites%2FBibliotecaAplicaciones%2FDocumentos%20compartidos%2F60%2DIBM%20Integration%20BUS%2F2%2E%20Dise%C3%B1o%20y%20Desarrollo%2FESB%5FACE12%5FAccountsTransactionHistory%2FMAPEOS&viewid=ab1a6f72%2De875%2D4328%2Dbc2d%2Db19a511d2a91"
-  
-**WSDL:**     
-N/A
 
-**JSON:**
-git\ESB_ACE12_AccountsTransactionHistory\Broker\JSON
+
+**SWAGGER**
+git/ESB_ACE12_AccountsTransactionHistory/Broker/SWAGGER/
 
 ## SQL
 -Operaciones del servicio
@@ -91,4 +89,9 @@ select * from admesb.esb_log_auditoria      where num_id_tipo_operacion = '27210
 select * from admesb.esb_log_auditoria2     where num_id_tipo_operacion = '27210'  
 select * from admesb.esb_log_auditoria_hist where num_id_tipo_operacion = '27210'  
 ```
+
+
+
+
+
 

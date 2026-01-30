@@ -1235,7 +1235,7 @@ async function validateReviewersAndRoutes(payload, token) {
   const prNumber = payload.pull_request.number;
   
   // Get valid reviewers from input or use defaults
-  const validReviewersInput = core.getInput('valid-reviewers') || 'DRamirezM,cdgomez,acardenasm,CAARIZA';
+  const validReviewersInput = core.getInput('valid-reviewers') || 'DRamirezM_bocc,cdgomez_bocc,acardenasm_bocc,CAARIZA_bocc,JJPARADA_bocc';
   const validReviewers = validReviewersInput.split(',').map(r => r.trim());
   
   const requestedReviewers = (payload.pull_request.requested_reviewers || []).map(r => r.login);
