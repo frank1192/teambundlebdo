@@ -318,20 +318,20 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
       notices.push("La sección '## INFORMACIÓN DEL SERVICIO' contiene información descriptiva");
     }
 
-    // ===== 4.1 Subsección Último despliege =====
-    core.info('✅ Validando subsección \'### Último despliege\'');
+    // ===== 4.1 Subsección Último despliegue/despliege =====
+    core.info('✅ Validando subsección \'### Último despliegue\'');
     
-    const ultimo = getSubsection('^###\\s*Último despliege');
+    const ultimo = getSubsection('^###\\s*Último desplie(gue|ge)');
     if (!ultimo) {
-      core.error('❌ Falta subsección \'### Último despliege\' en la sección \'INFORMACIÓN DEL SERVICIO\'');
-      errors.push("Falta subsección '### Último despliege' en la sección 'INFORMACIÓN DEL SERVICIO'");
+      core.error('❌ Falta subsección \'### Último despliegue\' (o \'### Último despliege\') en la sección \'INFORMACIÓN DEL SERVICIO\'');
+      errors.push("Falta subsección '### Último despliegue' (o '### Último despliege') en la sección 'INFORMACIÓN DEL SERVICIO'");
     } else {
-      core.info('::notice title=Validación de README.md::Subsección \'### Último despliege\' encontrada');
-      notices.push("Subsección '### Último despliege' encontrada");
+      core.info('::notice title=Validación de README.md::Subsección \'### Último despliegue/despliege\' encontrada');
+      notices.push("Subsección '### Último despliegue/despliege' encontrada");
       // look for table header
       if (/\|\s*CQ\s*\|\s*JIRA\s*\|\s*Fecha\s*\|/i.test(ultimo)) {
-        core.info('::notice title=Validación de README.md::✅ Encabezado de tabla \'Último despliege\' encontrado');
-        notices.push("Encabezado de tabla 'Último despliege' encontrado");
+        core.info('::notice title=Validación de README.md::✅ Encabezado de tabla \'Último despliegue\' encontrado');
+        notices.push("Encabezado de tabla 'Último despliegue' encontrado");
         
         // find first data row after separator line with ---
         const lines = ultimo.split(/\r?\n/);
@@ -349,23 +349,23 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
           }
         }
         if (!dataRow) {
-          core.error('❌ La tabla \'Último despliege\' no tiene fila de datos. Debe incluir al menos una fila con valores o \'NA\' en cada columna.');
-          errors.push("La tabla 'Último despliege' no tiene fila de datos. Debe incluir al menos una fila con valores o 'NA' en cada columna.");
+          core.error('❌ La tabla \'Último despliegue\' no tiene fila de datos. Debe incluir al menos una fila con valores o \'NA\' en cada columna.');
+          errors.push("La tabla 'Último despliegue' no tiene fila de datos. Debe incluir al menos una fila con valores o 'NA' en cada columna.");
         } else {
           // split cells
           const cells = dataRow.replace(/^\||\|$/g, '').split('|').map(s => s.trim());
           const empty = cells.some(c => c === '');
           if (empty) {
-            core.error('❌ La tabla \'Último despliege\' tiene celdas vacías en la fila de datos. Si no hay valor, debe colocarse \'NA\' en cada columna (CQ, JIRA, Fecha).');
-            errors.push("La tabla 'Último despliege' tiene celdas vacías en la fila de datos. Si no hay valor, debe colocarse 'NA' en cada columna (CQ, JIRA, Fecha).");
+            core.error('❌ La tabla \'Último despliegue\' tiene celdas vacías en la fila de datos. Si no hay valor, debe colocarse \'NA\' en cada columna (CQ, JIRA, Fecha).');
+            errors.push("La tabla 'Último despliegue' tiene celdas vacías en la fila de datos. Si no hay valor, debe colocarse 'NA' en cada columna (CQ, JIRA, Fecha).");
           } else {
-            core.info('::notice title=Validación de README.md::✅ La tabla \'Último despliege\' es válida (todas las celdas tienen valores)');
-            notices.push("La tabla 'Último despliege' es válida (todas las celdas tienen valores)");
+            core.info('::notice title=Validación de README.md::✅ La tabla \'Último despliegue\' es válida (todas las celdas tienen valores)');
+            notices.push("La tabla 'Último despliegue' es válida (todas las celdas tienen valores)");
           }
         }
       } else {
-        core.error('❌ La tabla \'Último despliege\' no tiene el formato correcto. Debe incluir el encabezado: |CQ |JIRA | Fecha|');
-        errors.push("La tabla 'Último despliege' no tiene el formato correcto. Debe incluir el encabezado: |CQ |JIRA | Fecha|");
+        core.error('❌ La tabla \'Último despliegue\' no tiene el formato correcto. Debe incluir el encabezado: |CQ |JIRA |Fecha|');
+        errors.push("La tabla 'Último despliegue' no tiene el formato correcto. Debe incluir el encabezado: |CQ |JIRA |Fecha|");
       }
     }
   }
@@ -872,13 +872,15 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
         .trim();
       
       // Accept both forward slash (/) and backslash (\\) in path
-      const gitPatternBackslash = new RegExp(`git\\\\${repo_name}\\\\Broker\\\\WSDL\\\\wsdl\\\\`, 'i');
-      const gitPatternForwardslash = new RegExp(`git/${repo_name}/Broker/WSDL/wsdl/`, 'i');
+      // Allow optional prefixes like ESB_ACE12_ before repo name
+      const repoNameBase = repo_name.replace(/^ESB_/, '');
+      const gitPatternBackslash = new RegExp(`git\\\\(ESB_)?(ACE12_|ACE_)?${repoNameBase}\\\\Broker\\\\WSDL`, 'i');
+      const gitPatternForwardslash = new RegExp(`git/(ESB_)?(ACE12_|ACE_)?${repoNameBase}/Broker/WSDL`, 'i');
       
       if (gitPatternBackslash.test(wsdlFragment) || gitPatternForwardslash.test(wsdlFragment) || /^\s*N\/?A\s*$/i.test(cleanFragment)) {
         notices.push(`Ruta WSDL válida para repositorio '${repo_name}'`);
       } else {
-        errors.push(`El campo 'WSDL' debe comenzar con 'git/${repo_name}/Broker/WSDL/wsdl/' (o con backslashes) o contener solo 'N/A'.`);
+        errors.push(`El campo 'WSDL' debe comenzar con 'git/${repo_name}/Broker/WSDL/' o 'git/ESB_ACE12_${repoNameBase}/Broker/WSDL/' (o con backslashes) o contener solo 'N/A'.`);
       }
     }
     
