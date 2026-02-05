@@ -321,10 +321,10 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
     // ===== 4.1 Subsección Último despliegue/despliege =====
     core.info('✅ Validando subsección \'### Último despliegue\'');
     
-    const ultimo = getSubsection('^###\\s*Último desplie(gue|ge)');
+    const ultimo = getSubsection('^###\\s*[UÚ]ltimo desplie(gue|ge)');
     if (!ultimo) {
-      core.error('❌ Falta subsección \'### Último despliegue\' (o \'### Último despliege\') en la sección \'INFORMACIÓN DEL SERVICIO\'');
-      errors.push("Falta subsección '### Último despliegue' (o '### Último despliege') en la sección 'INFORMACIÓN DEL SERVICIO'");
+      core.error('❌ Falta subsección \'### Último despliegue\' (o \'### Último despliege\' o sin tilde) en la sección \'INFORMACIÓN DEL SERVICIO\'');
+      errors.push("Falta subsección '### Último despliegue' (o '### Último despliege' o sin tilde) en la sección 'INFORMACIÓN DEL SERVICIO'");
     } else {
       core.info('::notice title=Validación de README.md::Subsección \'### Último despliegue/despliege\' encontrada');
       notices.push("Subsección '### Último despliegue/despliege' encontrada");
@@ -454,8 +454,8 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
         const datapower = cols[3] || ''; // DATAPOWER es la cuarta columna (índice 3)
         const endpoint = cols[4] || '';  // ENDPOINT es la quinta columna (índice 4)
         const rowContent = cols.join(' ');
-        if (!/^\s*(DESARROLLO|CALIDAD|PRODUCCI[OÓ]N)/i.test(ambiente)) continue;
-        if (!/^(DESARROLLO|CALIDAD|PRODUCCI[OÓ]N)/i.test(ambiente)) continue;
+        if (!/^\s*(DESARROLLO|CALIDAD|PRODUCCI[OÓ]?N)/i.test(ambiente)) continue;
+        if (!/^(DESARROLLO|CALIDAD|PRODUCCI[OÓ]?N)/i.test(ambiente)) continue;
         
         // Check if this is a N/A row (all values are N/A, NA, or Pendiente)
         const isNARow = /^(N\/?A|NA|Pendiente)$/i.test(tipoComponente) && 
@@ -466,12 +466,12 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
         // Marcar que existe el ambiente (aunque sea N/A)
         if (/^DESARROLLO/i.test(ambiente)) { has_des = true; if (!isNARow) has_des_real = true; }
         if (/^CALIDAD/i.test(ambiente)) { has_cal = true; if (!isNARow) has_cal_real = true; }
-        if (/^PRODUCCI[OÓ]N/i.test(ambiente)) { has_prd = true; if (!isNARow) has_prd_real = true; }
+        if (/^PRODUCCI[OÓ]?N/i.test(ambiente)) { has_prd = true; if (!isNARow) has_prd_real = true; }
         
         if (!isNARow) {
           all_na = false;
           // perform validations per ambiente - skip if NA or Pendiente
-          if (/^DESARROLLO/i.test(ambiente)) { has_des = true;
+          if (/^DESARROLLO/i.test(ambiente)) {
             if (datapower && !/^(N\/A|NA|Pendiente)$/i.test(datapower) && !/^BODP.*DEV$/i.test(datapower)) {
               core.error(`❌ Error en ${sectionName}: Datapower en DESARROLLO debe comenzar con BODP y terminar con DEV. Encontrado: ${datapower}`);
               errors.push(`Datapower en DESARROLLO debe comenzar con BODP y terminar con DEV. Encontrado: ${datapower}`);
@@ -481,7 +481,7 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
               errors.push(`Endpoint en DESARROLLO debe comenzar con https://boc201.des.app.bancodeoccidente.net Encontrado: ${endpoint}`);
             }
           }
-          if (/^CALIDAD/i.test(ambiente)) { has_cal = true;
+          if (/^CALIDAD/i.test(ambiente)) {
             if (datapower && !/^(N\/A|NA|Pendiente)$/i.test(datapower) && !/^BODP.*QAS$/i.test(datapower)) {
               core.error(`❌ Error en ${sectionName}: Datapower en CALIDAD debe comenzar con BODP y terminar con QAS. Encontrado: ${datapower}`);
               errors.push(`Datapower en CALIDAD debe comenzar con BODP y terminar con QAS. Encontrado: ${datapower}`);
@@ -500,7 +500,7 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
               }
             }
           }
-          if (/^PRODUCCI[OÓ]N/i.test(ambiente)) { has_prd = true;
+          if (/^PRODUCCI[OÓ]?N/i.test(ambiente)) {
             if (datapower && !/^(N\/A|NA|Pendiente)$/i.test(datapower) && !/^BODP.*PRD$/i.test(datapower)) {
               core.error(`❌ Error en ${sectionName}: Datapower en PRODUCCION debe comenzar con BODP y terminar con PRD. Encontrado: ${datapower}`);
               errors.push(`Datapower en PRODUCCION debe comenzar con BODP y terminar con PRD. Encontrado: ${datapower}`);
@@ -621,7 +621,7 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
           } else if (/^http:\/\//i.test(endpoint)) {
             core.warning(`⚠️  Endpoint BUS en CALIDAD usa HTTP (no HTTPS): ${endpoint}. Verifica si esto es correcto o si debería usar HTTPS.`);
           }
-        } else if (/^PRODUCCI[OÓ]N/i.test(ambiente)) {
+        } else if (/^PRODUCCI[OÓ]?N/i.test(ambiente)) {
           has_prd = true;
           if (/^NA$/i.test(endpoint)) {
             core.error(`❌ Tabla Endpoint BUS no puede contener valores NA. Ambiente: ${ambiente}`);
@@ -1140,14 +1140,14 @@ async function validateExecutionGroups(token, workspaceDir = process.cwd()) {
       throw new Error('No se encontró la sección "## Procedimiento de despliegue" en el README');
     }
     
-    // Find the line with "desplegar en los grupos de ejecución:"
+    // Find the line with "desplegar en los grupos de ejecución:" (acepta con y sin tilde)
     const deploymentLines = deploymentSection.split('\n');
     let groupsText = '';
     for (let i = 0; i < deploymentLines.length; i++) {
       const line = deploymentLines[i];
-      if (/desplegar en los grupos de ejecución:/i.test(line)) {
+      if (/desplegar en los grupos de ejecuci[oó]n:/i.test(line)) {
         // Try to get groups from same line first
-        const sameLineMatch = line.match(/desplegar en los grupos de ejecución:\s*(.+)/i);
+        const sameLineMatch = line.match(/desplegar en los grupos de ejecuci[oó]n:\s*(.+)/i);
         if (sameLineMatch && sameLineMatch[1].trim()) {
           groupsText = sameLineMatch[1].trim();
         } else {
@@ -1163,7 +1163,7 @@ async function validateExecutionGroups(token, workspaceDir = process.cwd()) {
     }
     
     if (!groupsText) {
-      throw new Error(`No se encontró la frase "desplegar en los grupos de ejecución:" en el procedimiento de despliegue para el servicio '${serviceName}'`);
+      throw new Error(`No se encontró la frase "desplegar en los grupos de ejecución:" (o sin tilde: "ejecucion") en el procedimiento de despliegue para el servicio '${serviceName}'`);
     }
 
     
@@ -1174,7 +1174,7 @@ async function validateExecutionGroups(token, workspaceDir = process.cwd()) {
       .map(g => g.toLowerCase());
     
     if (readmeGroups.length === 0) {
-      throw new Error(`No se pudieron extraer los grupos de ejecución para el servicio '${serviceName}'. Verifica que estén después de 'desplegar en los grupos de ejecución:' en la misma línea o en la siguiente.`);
+      throw new Error(`No se pudieron extraer los grupos de ejecución para el servicio '${serviceName}'. Verifica que estén después de 'desplegar en los grupos de ejecución:' (o 'ejecucion' sin tilde) en la misma línea o en la siguiente.`);
     }
     
     core.info(`📚 Grupos en README (${readmeGroups.length}): ${readmeGroups.join(', ')}`);
