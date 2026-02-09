@@ -1157,10 +1157,11 @@ async function validateExecutionGroups(token, workspaceDir = process.cwd()) {
         if (sameLineMatch && sameLineMatch[1].trim()) {
           groupsText = sameLineMatch[1].trim();
         } else {
-          // Get next lines until we hit another section or empty lines
-          for (let j = i + 1; j < deploymentLines.length && j < i + 10; j++) {
+          // Get next lines until we hit another section (skip empty lines)
+          for (let j = i + 1; j < deploymentLines.length && j < i + 20; j++) {
             const nextLine = deploymentLines[j].trim();
-            if (!nextLine || /^##/.test(nextLine)) break;
+            if (/^##/.test(nextLine)) break; // Stop at next section
+            if (!nextLine) continue; // Skip empty lines but don't stop
             groupsText += (groupsText ? ' ' : '') + nextLine;
           }
         }
