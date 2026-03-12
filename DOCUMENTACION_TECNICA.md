@@ -731,7 +731,8 @@ sequenceDiagram
 ```mermaid
 flowchart TD
     Start([Inicio validateReadmeTemplate]) --> ReadFile[Leer README.md]
-    ReadFile --> InitArrays[Inicializar arrays:<br/>notices = []<br/>errors = []]
+    ReadFile --> InitArrays["Inicializar arrays:
+notices y errors"]
     
     InitArrays --> V1[Validar Título Principal]
     V1 --> V2[Validar Secciones Requeridas]
@@ -745,7 +746,7 @@ flowchart TD
     V9 --> V10[Validar Documentación]
     V10 --> V11[Validar SQL]
     
-    V11 --> Check{¿Hay<br/>errores?}
+    V11 --> Check{"¿Hay errores?"}
     
     Check -->|Sí| LogErrors[Registrar todos los errores]
     LogErrors --> ThrowError[Lanzar excepción con resumen]
@@ -808,8 +809,8 @@ graph LR
     end
     
     subgraph "Dependencies"
-        J[@actions/core]
-        K[@actions/github]
+        J["@actions/core"]
+        K["@actions/github"]
         L[fs native]
         M[path native]
     end
