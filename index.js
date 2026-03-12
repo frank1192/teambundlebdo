@@ -1167,7 +1167,6 @@ async function validateExecutionGroups(token, workspaceDir = process.cwd()) {
       throw new Error(`No se encontró la frase "desplegar en los grupos de ejecución:" (o sin tilde: "ejecucion") en el procedimiento de despliegue para el servicio '${serviceName}'`);
     }
 
-    
     const readmeGroups = groupsText
       .split(/[\s,]+/)
       .filter(g => g.trim())
