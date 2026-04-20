@@ -818,26 +818,37 @@ async function validateReadmeTemplate(workspaceDir = process.cwd()) {
     core.info('::notice title=Validación de README.md::Sección \'DOCUMENTACION\' válida');
     notices.push("Sección 'DOCUMENTACION' válida");
     const docContent = docSection.replace(/\r?\n/g, ' ');
+    const sharePointUrlPrefixes = [
+      'https://bancoccidente.sharepoint.com/sites/BibliotecadeAplicaciones/',
+      'https://bancoccidente.sharepoint.com/:f:/r/sites/BibliotecadeAplicaciones'
+    ];
+    const sharePointUrlUpdateMessage = "URL de SharePoint desactualizada. Actualice la URL a 'https://bancoccidente.sharepoint.com/sites/BibliotecadeAplicaciones/' o 'https://bancoccidente.sharepoint.com/:f:/r/sites/BibliotecadeAplicaciones'.";
+    const hasValidSharePointPrefix = (fragment) => {
+      const urlMatch = fragment.match(/https?:\/\/[^\s<)]+/i);
+      if (!urlMatch) return false;
+      const url = urlMatch[0];
+      return sharePointUrlPrefixes.some(prefix => url.startsWith(prefix));
+    };
     
     // ===== 9.1. Documento de diseño detallado =====
     core.info('  ✔️ Validando campo \'Documento de diseño detallado\'');
     if (/\*\*Documento de diseño detallado\*\*/i.test(docContent) || /Documento de diseño detallado/i.test(docContent)) {
       const disenoFragment = (docContent.match(/\*\*Documento de diseño detallado(?:\*\*)?:.*?(?=\*\*[A-Z]|$)/i) || [''])[0];
-      if (/https:\/\/bancoccidente\.sharepoint\.com\/(:f:\/r\/)?sites\/BibliotecaAplicaciones\//i.test(disenoFragment)) notices.push("Enlace SharePoint válido para 'Documento de diseño detallado'"); else errors.push("El campo 'Documento de diseño detallado' debe tener un enlace que comience con 'https://bancoccidente.sharepoint.com/sites/BibliotecaAplicaciones/'");
+      if (hasValidSharePointPrefix(disenoFragment)) notices.push("Enlace SharePoint válido para 'Documento de diseño detallado'"); else errors.push(sharePointUrlUpdateMessage);
     } else {
       errors.push("Falta campo '**Documento de diseño detallado:**' en la sección DOCUMENTACION");
     }
     // Mapeo
     if (/\*\*Mapeo\*\*/i.test(docContent) || /Mapeo:/i.test(docContent)) {
       const mapeoFragment = (docContent.match(/\*\*Mapeo(?:\*\*)?:.*?(?=\*\*[A-Z]|$)/i) || [''])[0];
-      if (/https:\/\/bancoccidente\.sharepoint\.com\/(:f:\/r\/)?sites\/BibliotecaAplicaciones\//i.test(mapeoFragment)) notices.push("Enlace SharePoint válido para 'Mapeo'"); else errors.push("El campo 'Mapeo' debe tener un enlace que comience con 'https://bancoccidente.sharepoint.com/sites/BibliotecaAplicaciones/'");
+      if (hasValidSharePointPrefix(mapeoFragment)) notices.push("Enlace SharePoint válido para 'Mapeo'"); else errors.push(sharePointUrlUpdateMessage);
     } else {
       errors.push("Falta campo '**Mapeo:**' en la sección DOCUMENTACION");
     }
     // Evidencias
     if (/Evidencias\s*\(Unitarias\/.+?\)/i.test(docContent) || /Evidencias/i.test(docContent)) {
       const evFragment = (docContent.match(/\*\*Evidencias[\s\S]*?(?=\*\*[A-Z]|$)/i) || [''])[0];
-      if (/https:\/\/bancoccidente\.sharepoint\.com\/(:f:\/r\/)?sites\/BibliotecaAplicaciones\//i.test(evFragment)) notices.push("Enlace SharePoint válido para 'Evidencias'"); else errors.push("El campo 'Evidencias (Unitarias/Auditoria/Monitoreo)' debe tener un enlace que comience con 'https://bancoccidente.sharepoint.com/sites/BibliotecaAplicaciones/'");
+      if (hasValidSharePointPrefix(evFragment)) notices.push("Enlace SharePoint válido para 'Evidencias'"); else errors.push(sharePointUrlUpdateMessage);
     } else {
       errors.push("Falta campo '**Evidencias (Unitarias/Auditoria/Monitoreo):**' en la sección DOCUMENTACION");
     }
@@ -1173,7 +1184,6 @@ async function validateExecutionGroups(token, workspaceDir = process.cwd()) {
       throw new Error(`No se encontró la frase "desplegar en los grupos de ejecución:" (o sin tilde: "ejecucion") en el procedimiento de despliegue para el servicio '${serviceName}'`);
     }
 
-    
     const readmeGroups = groupsText
       .split(/[\s,]+/)
       .filter(g => g.trim())
